@@ -2,9 +2,10 @@ import SwiftUI
 
 /// Disclosure header for sections that are out of phase with the flight's
 /// current state (long-horizon reference data day-of, live detail pre-flight).
-/// Collapsed it's a slim card row; expanded, the wrapped section cards render
-/// beneath it. Nothing loads until expansion beyond what the section itself
-/// already holds.
+/// Header and content share ONE card: collapsed it's a slim row; expanded, the
+/// content unfolds beneath a hairline inside the same surface — never a second
+/// floating capsule. Wrapped sections should render in their `embedded` form
+/// (no own card shell, no repeated title).
 struct CollapsibleSection<Content: View>: View {
     let icon: String
     let title: String
@@ -14,7 +15,7 @@ struct CollapsibleSection<Content: View>: View {
     @State private var isExpanded: Bool = false
 
     var body: some View {
-        VStack(spacing: 14) {
+        VStack(alignment: .leading, spacing: 0) {
             Button {
                 Haptics.tap()
                 withAnimation(.snappy) { isExpanded.toggle() }
@@ -38,14 +39,22 @@ struct CollapsibleSection<Content: View>: View {
                                size: 15, fallback: "chevron.down")
                         .foregroundStyle(Theme.inkSecondary)
                 }
+                // Full-width hit target for the whole header row.
+                .contentShape(.rect)
             }
             .buttonStyle(.plain)
-            .cardStyle(padding: 14)
 
             if isExpanded {
-                content()
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+                Divider()
+                    .overlay(Theme.hairline)
+                    .padding(.top, 14)
+                VStack(alignment: .leading, spacing: 14) {
+                    content()
+                }
+                .padding(.top, 14)
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
+        .cardStyle(padding: 14)
     }
 }

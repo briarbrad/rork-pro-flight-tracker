@@ -89,14 +89,14 @@ struct ChainSection: View {
     let chain: ChainData
     /// Zone of the airport the inbound leg lands at — i.e. this flight's origin.
     var arrivalZone: TimeZone? = nil
-    /// Off when rendered under a disclosure header that already names the
-    /// section — avoids the repeated "Your aircraft" title.
-    var showHeader: Bool = true
+    /// Embedded = rendered inside a CollapsibleSection's card: no own card
+    /// shell and no repeated "Your aircraft" title.
+    var embedded: Bool = false
     var onOpenInbound: ((AeroFlight) -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if showHeader {
+            if !embedded {
                 SectionHeader(icon: "link", title: "Your aircraft")
             }
 
@@ -221,15 +221,15 @@ struct ChainSection: View {
 struct MapPreviewSection: View {
     let position: AircraftPosition?
     let flightIdent: String
-    /// Off when rendered under a disclosure header that already names the
-    /// section — avoids the repeated "Live position" title.
-    var showHeader: Bool = true
+    /// Embedded = rendered inside a CollapsibleSection's card: no own card
+    /// shell and no repeated "Live position" title.
+    var embedded: Bool = false
     let onExpand: () -> Void
 
     var body: some View {
         if let position, let lat = position.latitude, let lon = position.longitude {
             VStack(alignment: .leading, spacing: 12) {
-                if showHeader {
+                if !embedded {
                     SectionHeader(icon: "map", title: "Live position")
                 }
 
@@ -312,9 +312,9 @@ struct WeatherSection: View {
     let faa: [String: FaaAirportStatus]?
     var title: String = "Airport weather & FAA status"
     var horizonNote: String? = nil
-    /// Off when rendered under a disclosure header that already names the
-    /// section — the horizon note still shows.
-    var showHeader: Bool = true
+    /// Embedded = rendered inside a CollapsibleSection's card: no own card
+    /// shell and no repeated title — the horizon note still shows.
+    var embedded: Bool = false
     var onOpenWeather: ((String) -> Void)? = nil
     var onOpenFaa: ((String) -> Void)? = nil
 
@@ -322,7 +322,7 @@ struct WeatherSection: View {
         let airports = airportList
         if !airports.isEmpty {
             VStack(alignment: .leading, spacing: 12) {
-                if showHeader {
+                if !embedded {
                     SectionHeader(icon: "cloud-sun", title: title)
                 }
                 if let horizonNote {

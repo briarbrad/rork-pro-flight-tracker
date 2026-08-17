@@ -8,6 +8,10 @@ import SwiftUI
 struct EnrouteHazardsSection: View {
     let convective: TcfEnvelope?
     let internationalSigmets: [InternationalSigmet]?
+    /// Embedded = rendered inside a CollapsibleSection's card: keeps its own
+    /// sub-header (the title differs from the disclosure's) but drops the
+    /// card shell so it doesn't nest a capsule inside a capsule.
+    var embedded: Bool = false
 
     private var advisories: [InternationalSigmet] { internationalSigmets ?? [] }
 
@@ -17,25 +21,33 @@ struct EnrouteHazardsSection: View {
 
     var body: some View {
         if hasContent {
-            VStack(alignment: .leading, spacing: 12) {
-                SectionHeader(icon: "cloud-lightning", title: "Convective & en-route hazards")
-
-                if let convective {
-                    convectiveBlock(convective)
-                }
-
-                if !advisories.isEmpty {
-                    if convective != nil {
-                        Divider().overlay(Theme.hairline)
-                    }
-                    advisoryBlock
-                }
-
-                Text("Context only — these don't change the assessment above, the same way FAA traffic management treats them as inputs rather than decisions.")
-                    .font(.caption2)
-                    .foregroundStyle(Theme.inkSecondary)
+            if embedded {
+                sectionContent
+            } else {
+                sectionContent
+                    .cardStyle()
             }
-            .cardStyle()
+        }
+    }
+
+    private var sectionContent: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionHeader(icon: "cloud-lightning", title: "Convective & en-route hazards")
+
+            if let convective {
+                convectiveBlock(convective)
+            }
+
+            if !advisories.isEmpty {
+                if convective != nil {
+                    Divider().overlay(Theme.hairline)
+                }
+                advisoryBlock
+            }
+
+            Text("Context only — these don't change the assessment above, the same way FAA traffic management treats them as inputs rather than decisions.")
+                .font(.caption2)
+                .foregroundStyle(Theme.inkSecondary)
         }
     }
 

@@ -190,20 +190,21 @@ struct FlightDetailView: View {
         if snapshot?.chain != nil {
             CollapsibleSection(icon: "link", title: "Your aircraft",
                                subtitle: "Inbound leg and turn time") {
-                chainSection(showHeader: false)
+                chainSection(embedded: true)
             }
         }
         if snapshot?.chain?.aircraftPosition != nil {
             CollapsibleSection(icon: "map", title: "Live position") {
-                mapSection(showHeader: false)
+                mapSection(embedded: true)
             }
         }
         if leg?.originIcao != nil || leg?.destIcao != nil {
             CollapsibleSection(icon: "cloud-sun", title: "Airport conditions",
                                subtitle: "Reference only at this horizon") {
-                weatherSection(showHeader: false)
+                weatherSection(embedded: true)
                 EnrouteHazardsSection(convective: snapshot?.convective,
-                                      internationalSigmets: snapshot?.internationalSigmets)
+                                      internationalSigmets: snapshot?.internationalSigmets,
+                                      embedded: true)
             }
         }
         // Already horizon-gated: locks itself beyond the same-day window.
@@ -211,7 +212,7 @@ struct FlightDetailView: View {
                    destIcao: leg?.destIcao,
                    hoursToDeparture: hoursToDeparture)
         NarrativeSection(flight: flight)
-        alertHistory
+        alertHistory(embedded: false)
     }
 
     // MARK: - Day-of / in-air: next event first, map promoted
@@ -220,21 +221,21 @@ struct FlightDetailView: View {
     private var dayOfLayout: some View {
         heroCard
         // Live map promoted to slot 2 (renders only when a position exists).
-        mapSection(showHeader: true)
+        mapSection(embedded: false)
         edctBannerView
         predictedTimesCard
-        weatherSection(showHeader: true)
+        weatherSection(embedded: false)
         forecastWindows
         BriefSection(flight: flight)
         signalsSection
         EnrouteHazardsSection(convective: snapshot?.convective,
                               internationalSigmets: snapshot?.internationalSigmets)
-        chainSection(showHeader: true)
+        chainSection(embedded: false)
         OpsSection(originIcao: leg?.originIcao,
                    destIcao: leg?.destIcao,
                    hoursToDeparture: hoursToDeparture)
         NarrativeSection(flight: flight)
-        alertHistory
+        alertHistory(embedded: false)
     }
 
     // MARK: - Landed / cancelled: closure card + collapsed record
@@ -249,8 +250,8 @@ struct FlightDetailView: View {
                           lastRefreshed: snapshot?.lastRefreshed)
         CollapsibleSection(icon: "archive", title: "Flight record",
                            subtitle: "Actual times and alert history") {
-            FlightRecordCard(leg: leg, zones: zones)
-            alertHistory
+            FlightRecordCard(leg: leg, zones: zones, embedded: true)
+            alertHistory(embedded: true)
         }
     }
 
@@ -326,38 +327,39 @@ struct FlightDetailView: View {
         }
     }
 
-    /// `showHeader: false` when rendered under a CollapsibleSection whose
-    /// disclosure header already names the section — no repeated titles.
+    /// `embedded: true` when rendered inside a CollapsibleSection's card —
+    /// the section drops its own card shell and redundant title so the
+    /// disclosure header and content read as one surface.
     @ViewBuilder
-    private func chainSection(showHeader: Bool) -> some View {
+    private func chainSection(embedded: Bool) -> some View {
         if let chain = snapshot?.chain {
             // The inbound leg lands at this flight's origin, so its ETA
             // reads in the origin's local time.
             ChainSection(chain: chain, arrivalZone: zones.origin,
-                         showHeader: showHeader) { inbound in
+                         embedded: embedded) { inbound in
                 Haptics.tap()
                 inboundToShow = inbound
             }
         }
     }
 
-    private func mapSection(showHeader: Bool) -> some View {
+    private func mapSection(embedded: Bool) -> some View {
         MapPreviewSection(position: snapshot?.chain?.aircraftPosition,
                           flightIdent: flight.ident,
-                          showHeader: showHeader) {
+                          embedded: embedded) {
             Haptics.tap()
             showingMap = true
         }
     }
 
-    private func weatherSection(showHeader: Bool) -> some View {
+    private func weatherSection(embedded: Bool) -> some View {
         WeatherSection(leg: leg,
                        metar: snapshot?.metar,
                        taf: snapshot?.taf,
                        faa: snapshot?.faa,
                        title: conditionsTitle,
                        horizonNote: conditionsNote,
-                       showHeader: showHeader,
+                       embedded: embedded,
                        onOpenWeather: { icao in
                            Haptics.tap()
                            popup = .weather(icao: icao,
@@ -374,30 +376,35 @@ struct FlightDetailView: View {
 
     // MARK: - Alert history
 
-    private var alertHistory: some View {
+    /// `embedded: true` inside the flight-record collapsible — keeps the
+    /// sub-header but drops the card shell.
+    @ViewBuilder
+    private func alertHistory(embedded: Bool) -> some View {
         let flightAlerts = store.alerts(for: flight.id)
-        return Group {
-            if !flightAlerts.isEmpty {
-                VStack(alignment: .leading, spacing: 12) {
-                    SectionHeader(icon: "bell-ring", title: "Alert history")
-                    ForEach(flightAlerts.prefix(10)) { alert in
-                        HStack(alignment: .top, spacing: 10) {
-                            LucideIcon(name: alert.icon, size: 14, fallback: "bell")
-                                .foregroundStyle(alert.level.color)
-                                .padding(.top, 2)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(alert.title)
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(Theme.ink)
-                                Text(TimeFmt.relative(alert.createdAt))
-                                    .font(.caption2)
-                                    .foregroundStyle(Theme.inkSecondary)
-                            }
-                            Spacer()
+        if !flightAlerts.isEmpty {
+            let content = VStack(alignment: .leading, spacing: 12) {
+                SectionHeader(icon: "bell-ring", title: "Alert history")
+                ForEach(flightAlerts.prefix(10)) { alert in
+                    HStack(alignment: .top, spacing: 10) {
+                        LucideIcon(name: alert.icon, size: 14, fallback: "bell")
+                            .foregroundStyle(alert.level.color)
+                            .padding(.top, 2)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(alert.title)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Theme.ink)
+                            Text(TimeFmt.relative(alert.createdAt))
+                                .font(.caption2)
+                                .foregroundStyle(Theme.inkSecondary)
                         }
+                        Spacer()
                     }
                 }
-                .cardStyle()
+            }
+            if embedded {
+                content
+            } else {
+                content.cardStyle()
             }
         }
     }

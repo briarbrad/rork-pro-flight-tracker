@@ -103,6 +103,9 @@ struct FlightClosureCard: View {
 struct FlightRecordCard: View {
     let leg: AeroFlight?
     let zones: FlightZones
+    /// Embedded = rendered inside a CollapsibleSection's card: keeps the
+    /// "Actual times" sub-header but drops the card shell.
+    var embedded: Bool = false
 
     private var milestones: [(label: String, icon: String, iso: String?, zone: TimeZone?)] {
         [("Left the gate", "door-open", leg?.actualOut, zones.origin),
@@ -112,6 +115,15 @@ struct FlightRecordCard: View {
     }
 
     var body: some View {
+        if embedded {
+            recordContent
+        } else {
+            recordContent
+                .cardStyle()
+        }
+    }
+
+    private var recordContent: some View {
         VStack(alignment: .leading, spacing: 12) {
             SectionHeader(icon: "archive", title: "Actual times")
 
@@ -146,7 +158,6 @@ struct FlightRecordCard: View {
                 }
             }
         }
-        .cardStyle()
     }
 
     private var zoneCaption: String? {
