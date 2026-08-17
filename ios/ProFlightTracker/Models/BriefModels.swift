@@ -456,6 +456,10 @@ nonisolated struct StoredBrief: Codable, Hashable, Sendable {
     var taxi: BriefTaxi?
     var position: BriefPosition?
     var refreshAfterSeconds: Int?
+    /// Set by the refresh pipeline when live milestones contradict this
+    /// brief's phase — the brief no longer describes reality and must wear
+    /// the stale treatment regardless of the server's staleness threshold.
+    var contradictedByLiveData: Bool?
     var narrative: String?
     var narrativeFailed: Bool
     let runAt: Date
@@ -539,11 +543,20 @@ nonisolated struct StoredBrief: Codable, Hashable, Sendable {
         return minutes - elapsed
     }
 
+    /// Minutes in the current phase as of NOW — the server's value is frozen
+    /// at brief-run time, so rendering it verbatim shows "In phase 2 min"
+    /// forever. Client-derived phases carry no elapsed value (nil).
+    var elapsedInPhaseMinNow: Int? {
+        guard let elapsed = phase?.elapsedInPhaseMin else { return nil }
+        return elapsed + Int(Date().timeIntervalSince(runAt) / 60)
+    }
+
     /// Past the server's staleness threshold (`refresh_after_seconds`) — the
     /// brief no longer describes the flight's current state. This is when to
     /// grey the verdict and suggest a re-run, NOT a polling interval: the
     /// endpoint costs paid queries, so refresh stays user-initiated.
     var isStale: Bool {
+        if contradictedByLiveData == true { return true }
         guard let seconds = refreshAfterSeconds else { return false }
         return Date().timeIntervalSince(runAt) > Double(seconds)
     }

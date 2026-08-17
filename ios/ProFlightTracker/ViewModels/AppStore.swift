@@ -120,6 +120,7 @@ final class AppStore {
 
         var snapshot = snapshots[flight.id] ?? FlightSnapshot()
         snapshot.refreshError = nil
+        var freshLeg: AeroFlight?
 
         do {
             // Phase 1 — flight status first, so we know the horizon.
@@ -131,6 +132,11 @@ final class AppStore {
             }
             let leg = pickBestLeg(status.data?.flights)
             snapshot.flight = leg ?? snapshot.flight
+            freshLeg = leg
+            // The derived phase from live milestones is the single source of
+            // truth: if the fresh leg contradicts the stored brief, the brief
+            // no longer describes reality.
+            if let leg { reconcileBrief(with: leg, snapshot: &snapshot) }
 
             // Same-day gate: /api/brief deliberately skips the equipment chain
             // beyond ~12h out, and the chain pull costs paid FlightAware
@@ -203,8 +209,40 @@ final class AppStore {
             print("[Store] refresh \(flight.id) failed: \(error)")
         }
 
+        // Lost-update guard: runBrief() may have landed a fresher brief while
+        // this refresh awaited its network calls — the whole-snapshot write
+        // below must never clobber it. Newer runAt wins; the adopted brief is
+        // then reconciled against the fresh leg like any other.
+        if let latest = snapshots[flight.id]?.brief,
+           latest.runAt > (snapshot.brief?.runAt ?? .distantPast) {
+            snapshot.brief = latest
+            if let freshLeg { reconcileBrief(with: freshLeg, snapshot: &snapshot) }
+        }
         snapshots[flight.id] = snapshot
         persist()
+    }
+
+    /// Reconciles the stored brief with the live flight leg. When the derived
+    /// phase disagrees with the brief's phase, the brief is describing a past
+    /// state: swap in a minimal client-derived phase (no taxi/position
+    /// enrichment — that described the old phase), force the stale treatment,
+    /// and promote reported actual_* milestones over their predicted slots so
+    /// a future "Arrival" never renders after the flight has arrived.
+    private func reconcileBrief(with leg: AeroFlight, snapshot: inout FlightSnapshot) {
+        guard var brief = snapshot.brief else { return }
+        let derived = FlightPhaseDerivation.phase(for: leg)
+        // A brief without a phase block predates phase support — it implicitly
+        // describes a pre-departure flight.
+        let briefCode = brief.phase?.code ?? DerivedFlightPhase.preGate.rawValue
+        if briefCode != derived.rawValue {
+            brief.phase = FlightPhaseDerivation.minimalBriefPhase(for: leg)
+            brief.taxi = nil
+            brief.position = nil
+            brief.contradictedByLiveData = true
+        }
+        brief.predictedTimes = FlightPhaseDerivation.reconciledPredictions(
+            brief.predictedTimes, with: leg)
+        snapshot.brief = brief
     }
 
     /// Picks the leg that matches best: prefer one that hasn't arrived yet.

@@ -31,11 +31,16 @@ struct BriefSection: View {
                 // screen is organised around "what happens next", not the
                 // schedule.
                 if let phase = brief.phase, phase.code != "PRE_GATE" {
-                    PhaseCard(brief: brief, zones: zones)
+                    PhaseCard(brief: brief, zones: zones) {
+                        Task { await runBrief() }
+                    }
                 }
                 // Headline: server-predicted times — when does this flight GO.
                 if let times = brief.predictedTimes {
-                    PredictedTimesCard(times: times, timezones: brief.timezones, zones: zones)
+                    PredictedTimesCard(times: times, timezones: brief.timezones, zones: zones,
+                                       isStale: brief.isStale, runAt: brief.runAt) {
+                        Task { await runBrief() }
+                    }
                 }
                 // FAA-controlled wheels-up slot: the top fact when present.
                 if let edct = brief.predictedTimes?.edct, edct.edct != nil {

@@ -7,6 +7,8 @@ import SwiftUI
 struct PhaseCard: View {
     let brief: StoredBrief
     let zones: FlightZones
+    /// Re-run affordance for the stale treatment — briefs stay user-initiated.
+    var onRerun: (() -> Void)? = nil
 
     private var phase: BriefPhase? { brief.phase }
 
@@ -33,8 +35,35 @@ struct PhaseCard: View {
                 if let position = brief.position, position.isAvailable {
                     positionRow(position)
                 }
+
+                // Same stale treatment as the verdict card: this card
+                // described the flight as of brief-run time.
+                if brief.isStale {
+                    staleFooter
+                }
             }
+            .opacity(brief.isStale ? 0.75 : 1)
             .cardStyle()
+        }
+    }
+
+    private var staleFooter: some View {
+        Button {
+            Haptics.tap()
+            onRerun?()
+        } label: {
+            HStack(spacing: 6) {
+                LucideIcon(name: "history", size: 11, fallback: "clock")
+                Text("As of \(TimeFmt.relative(brief.runAt)) — re-run the brief for the live picture.")
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(Theme.gold)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(10)
+            .background(Theme.gold.opacity(0.1))
+            .clipShape(.rect(cornerRadius: 10))
         }
     }
 
@@ -55,7 +84,9 @@ struct PhaseCard: View {
 
             Spacer()
 
-            if let elapsed = phase.elapsedInPhaseMin, phase.isEnRoute {
+            // Advances with wall-clock time — the server's value is frozen at
+            // brief-run time and would read "In phase 2 min" forever.
+            if let elapsed = brief.elapsedInPhaseMinNow, phase.isEnRoute {
                 VStack(alignment: .trailing, spacing: 1) {
                     Text("In phase")
                         .font(.caption2)
@@ -197,10 +228,16 @@ struct PhaseCard: View {
         return "—"
     }
 
-    /// "in 88 min" advanced to now; past-zero flips to "past predicted time".
+    /// "in 88 min" advanced to now. Past zero the prediction is simply old —
+    /// name the last predicted time instead of the alarming-sounding
+    /// "past predicted time" (the overdue flag has its own explicit row).
     private func countdownText(_ phase: BriefPhase) -> String? {
         guard let minutes = brief.minutesToNextEventNow else { return nil }
-        if minutes < 0 { return phase.isOverdue ? nil : "past predicted time" }
+        if minutes < 0 {
+            if phase.isOverdue { return nil }
+            let last = nextEventTimeText(phase)
+            return last == "\u{2014}" ? "awaiting update" : "awaiting update \u{2014} last predicted \(last)"
+        }
         if minutes < 120 { return "in \(minutes) min" }
         let hours = Double(minutes) / 60
         return "in ~\(Int(hours.rounded()))h"

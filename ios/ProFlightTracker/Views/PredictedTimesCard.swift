@@ -10,6 +10,11 @@ struct PredictedTimesCard: View {
     let times: BriefPredictedTimes
     var timezones: BriefTimezones? = nil
     var zones: FlightZones = .unknown
+    /// Stale-brief treatment, mirroring the verdict card: dimmed content,
+    /// "as of" caption, and a re-run affordance. Never auto-refreshes.
+    var isStale: Bool = false
+    var runAt: Date? = nil
+    var onRerun: (() -> Void)? = nil
 
     @State private var expandedSlot: PredictedSlot?
 
@@ -43,8 +48,33 @@ struct PredictedTimesCard: View {
                     .font(.caption2)
                     .foregroundStyle(Theme.inkSecondary)
             }
+
+            if isStale, let runAt {
+                staleRow(runAt)
+            }
         }
+        .opacity(isStale ? 0.75 : 1)
         .cardStyle()
+    }
+
+    private func staleRow(_ runAt: Date) -> some View {
+        Button {
+            Haptics.tap()
+            onRerun?()
+        } label: {
+            HStack(spacing: 6) {
+                LucideIcon(name: "history", size: 11, fallback: "clock")
+                Text("As of \(TimeFmt.relative(runAt)) — re-run the brief for the live picture.")
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(Theme.gold)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(10)
+            .background(Theme.gold.opacity(0.1))
+            .clipShape(.rect(cornerRadius: 10))
+        }
     }
 
     private var originZone: TimeZone? {
@@ -162,7 +192,11 @@ struct PredictedTimesCard: View {
 
     @ViewBuilder
     private func deltaChip(_ entry: BriefPredictedTime?) -> some View {
-        if let delay = entry?.delayVsScheduleMin, entry?.isUnknown != true {
+        // An actual time is a fact, not a promise — the reassuring green
+        // "on time" chip is for predictions only. A late actual (+N min)
+        // remains factual and stays.
+        if let delay = entry?.delayVsScheduleMin, entry?.isUnknown != true,
+           !(entry?.isActual == true && delay <= 0) {
             let late = delay > 0
             Text(late ? "+\(delay) min" : "on time")
                 .font(.caption2.weight(.bold))
