@@ -21,7 +21,8 @@ nonisolated enum APIError: LocalizedError {
 }
 
 /// Client for the Pro Flight Tracker engine on Railway.
-/// The API is unauthenticated; all data-source keys live server-side.
+/// Requests carry a bearer token when one is configured; all data-source
+/// keys live server-side.
 nonisolated enum API {
     static let baseURL = "https://pro-flight-tracker-production.up.railway.app"
 
@@ -48,6 +49,14 @@ nonisolated enum API {
     }
 
     private static func perform(_ request: URLRequest) async throws -> Data {
+        // Every call — GET, POST, DELETE — funnels through here, so this is
+        // the single place the backend auth header is attached. The backend
+        // accepts requests without it, so an unconfigured token is harmless.
+        var request = request
+        let token = Config.EXPO_PUBLIC_BACKEND_API_TOKEN
+        if !token.isEmpty {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else {
             throw APIError.server("No response from the flight engine.")
