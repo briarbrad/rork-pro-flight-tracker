@@ -1,0 +1,4 @@
+[submodule "pro-flight-tracker"]
+	path = pro-flight-tracker
+	url = https://github.com/briarbrad/pro-flight-tracker.git
+	branch = main
