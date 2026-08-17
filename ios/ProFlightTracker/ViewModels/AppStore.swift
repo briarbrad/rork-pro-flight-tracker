@@ -51,7 +51,9 @@ final class AppStore {
         }
     }
 
-    var unreadAlertCount: Int { alerts.filter { !$0.isRead }.count }
+    /// Tab badge counts only unread DETERIORATIONS — "eased/improved" news
+    /// sits in the drawer without demanding attention.
+    var unreadAlertCount: Int { alerts.filter { !$0.isRead && !$0.isImprovement }.count }
 
     func alerts(for flightKey: String) -> [FlightAlert] {
         alerts.filter { $0.flightKey == flightKey }.sorted { $0.createdAt > $1.createdAt }
@@ -77,6 +79,10 @@ final class AppStore {
             let reason = status.errors?.first?.error ?? "No flights found for \(cleaned) on that date."
             throw APIError.server(reason)
         }
+
+        // First moment notifications matter — ask now, not at app launch.
+        // No-op once the user has answered.
+        NotificationService.requestAuthorizationIfNeeded()
 
         let tracked = TrackedFlight(ident: cleaned, date: dateString, intervalMinutes: intervalMinutes)
         flights.append(tracked)
@@ -370,7 +376,8 @@ final class AppStore {
                     ? "Live signals improved from \(previous.level.rawValue)."
                     : "Escalated from \(previous.level.rawValue) — open the flight for details.",
                 level: assessment.level,
-                icon: improved ? "trending-down" : "trending-up"))
+                icon: improved ? "trending-down" : "trending-up",
+                isImprovement: improved))
         } else if previous == nil, assessment.level != .low {
             newAlerts.append(FlightAlert(
                 flightKey: flight.id, ident: flight.ident,
@@ -383,6 +390,11 @@ final class AppStore {
             alerts.insert(contentsOf: newAlerts, at: 0)
             if alerts.count > 300 { alerts = Array(alerts.prefix(300)) }
             Haptics.warning()
+            // Reach the closed-in-pocket phone too: local notifications,
+            // grouped per flight, severity-mapped. Improvements never post.
+            for alert in newAlerts {
+                NotificationService.post(alert)
+            }
         }
     }
 
