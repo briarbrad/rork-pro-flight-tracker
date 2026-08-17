@@ -52,6 +52,14 @@ struct FlightCardView: View {
                 }
                 Spacer()
             }
+
+            // Same freshness language as the flight screen — amber once the
+            // data is older than its server-declared refresh window.
+            if let refreshed = snapshot?.lastRefreshed {
+                FreshnessCaption(asOf: refreshed,
+                                 prefix: "updated",
+                                 isStale: snapshot?.autoRefreshDue == true && !isRefreshing)
+            }
         }
         .cardStyle()
     }

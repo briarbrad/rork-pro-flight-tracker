@@ -565,6 +565,52 @@ struct JargonPopupContent: View {
     }
 }
 
+// MARK: - Glossary sheet
+
+/// Glossary definition presented as a half-height system sheet — quick to
+/// glance, quick to dismiss, and it never covers the whole screen the way
+/// the floating cards do.
+struct JargonSheet: View {
+    let entry: GlossaryEntry
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(Theme.teal.opacity(0.14))
+                        .frame(width: 36, height: 36)
+                    LucideIcon(name: "book-open", size: 16, fallback: "book")
+                        .foregroundStyle(Theme.teal)
+                }
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(entry.term)
+                        .font(.headline)
+                        .foregroundStyle(Theme.ink)
+                    if entry.name != entry.term {
+                        Text(entry.name)
+                            .font(.caption)
+                            .foregroundStyle(Theme.inkSecondary)
+                    }
+                }
+                Spacer()
+            }
+
+            ScrollView {
+                GlossaryText(text: entry.definition, font: .subheadline, color: Theme.ink)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(Theme.canvas)
+        .presentationDetents([.medium])
+        .presentationDragIndicator(.visible)
+    }
+}
+
 // MARK: - Shared block helper
 
 @ViewBuilder

@@ -12,6 +12,7 @@ struct AirportsView: View {
     @State private var errorMessage: String?
     @State private var recents: [String] = UserDefaults.standard.stringArray(forKey: "pft.recentAirports") ?? []
     @State private var popup: DetailPopup?
+    @State private var jargon: GlossaryEntry?
     @FocusState private var searchFocused: Bool
 
     var body: some View {
@@ -41,9 +42,10 @@ struct AirportsView: View {
             .background(Theme.canvas)
             .navigationTitle("Airports")
             .fullScreenCover(item: $popup) { DetailPopupHost(popup: $0) }
+            .sheet(item: $jargon) { JargonSheet(entry: $0) }
             .glossaryLinkHandler { entry in
                 Haptics.tap()
-                popup = .jargon(entry)
+                jargon = entry
             }
         }
     }

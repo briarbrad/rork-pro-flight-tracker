@@ -1,18 +1,27 @@
 import SwiftUI
 
-/// Full flight report: status header, pre-flight brief (the only flight-level
-/// verdict), live flight signals, inbound chain, map preview, current airport
-/// conditions, horizon-gated ops deep-dive, and alert history.
+/// Phase-adaptive flight report. The screen reads the freshest phase truth
+/// (live layer → brief fallback → milestone-derived guard) and organises
+/// itself around it:
+/// - Pre-flight (>2h out): verdict + predicted departure first; live detail
+///   (aircraft chain, conditions, map) collapsed behind disclosure headers.
+/// - Day-of / in-air: next event first, live map promoted to slot 2,
+///   EDCT above the predicted-times grid, destination conditions next.
+/// - Landed / cancelled: one compact closure card + a collapsed flight
+///   record — history is never restated as prediction.
 struct FlightDetailView: View {
     @Environment(AppStore.self) private var store
     let flight: TrackedFlight
 
     @State private var showingMap: Bool = false
     @State private var popup: DetailPopup?
+    @State private var jargon: GlossaryEntry?
     @State private var inboundToShow: AeroFlight?
 
     private var snapshot: FlightSnapshot? { store.snapshots[flight.id] }
     private var leg: AeroFlight? { snapshot?.flight }
+    private var live: StoredLive? { snapshot?.live }
+    private var brief: StoredBrief? { snapshot?.brief }
 
     private var hoursToDeparture: Double? { HorizonGate.hoursToDeparture(leg) }
 
@@ -20,7 +29,60 @@ struct FlightDetailView: View {
     /// to — departure facts in the origin's, arrival facts in the destination's.
     private var zones: FlightZones {
         FlightZones.resolve(flight: leg,
-                            brief: snapshot?.live?.timezones ?? snapshot?.brief?.timezones)
+                            brief: live?.timezones ?? brief?.timezones)
+    }
+
+    // MARK: - Phase truth & screen mode
+
+    /// The freshest phase on file — the single source of truth the screen is
+    /// organised around. Live layer wins on every refresh; the brief's phase
+    /// only renders before the first live pull; the milestone-derived guard
+    /// covers the no-data case.
+    private var truthPhase: BriefPhase? {
+        if let phase = live?.phase { return phase }
+        if live == nil, let phase = brief?.phase { return phase }
+        return leg.map { FlightPhaseDerivation.minimalBriefPhase(for: $0) }
+    }
+
+    private enum ScreenMode { case preFlight, dayOf, closed }
+
+    private var mode: ScreenMode {
+        if let phase = truthPhase {
+            if phase.isOver { return .closed }
+            if phase.isEnRoute { return .dayOf }
+        }
+        if let hours = hoursToDeparture, hours > 2 { return .preFlight }
+        return .dayOf
+    }
+
+    // MARK: - Hero inputs
+
+    /// Taxi assessment from the live layer; brief fallback only pre-live.
+    private var heroTaxi: BriefTaxi? {
+        live?.taxi ?? (live == nil ? brief?.taxi : nil)
+    }
+
+    /// The live layer carries no position block (one query, no ADS-B) — the
+    /// brief's position is enrichment on it, but only while the brief is
+    /// fresh and still describes the same phase.
+    private var heroPosition: BriefPosition? {
+        guard let brief, !brief.isStale,
+              brief.phase?.code == truthPhase?.code else { return nil }
+        return brief.position
+    }
+
+    private var heroNextEventEntry: BriefPredictedTime? {
+        live?.nextEventPredictedTime ?? brief?.nextEventPredictedTime
+    }
+
+    /// SOURCE-pull anchor for the hero's countdowns and freshness caption.
+    private var heroAsOf: Date? {
+        live?.fetchedAt ?? snapshot?.lastRefreshed ?? brief?.runAt
+    }
+
+    /// Older than its refresh window — the hero caption turns amber.
+    private var heroIsStale: Bool {
+        live?.isStale ?? (snapshot?.autoRefreshDue ?? false)
     }
 
     /// Signals about the flight itself and its aircraft chain. Shown only
@@ -32,7 +94,7 @@ struct FlightDetailView: View {
         }
     }
 
-    private var briefHasEffects: Bool { snapshot?.brief?.hasEffects == true }
+    private var briefHasEffects: Bool { brief?.hasEffects == true }
 
     private var conditionsTitle: String {
         var names: [String] = []
@@ -52,77 +114,19 @@ struct FlightDetailView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 14) {
-                headerCard
-
+                // ONE banner for offline/refresh failures — cards below keep
+                // rendering last-known data with their freshness captions.
                 if let error = snapshot?.refreshError {
-                    errorBanner(error)
-                }
-
-                BriefSection(flight: flight)
-
-                // Once a brief supplies effects[], those replace the client
-                // signal list as the explanation on this screen.
-                if !briefHasEffects {
-                    SignalListSection(title: "Flight status signals",
-                                      icon: "activity",
-                                      caption: "From the airline's status feed and this aircraft's own chain. Run the brief for the full cause → effect picture.",
-                                      signals: flightSignals) { signal in
-                        Haptics.tap()
-                        popup = .riskSignal(signal)
+                    GlobalRefreshBanner(message: error) {
+                        Task { await store.refresh(flight) }
                     }
                 }
 
-                // Terminal forecast in the ±60 min window around the predicted
-                // times — the only weather block that can move the verdict.
-                if let windows = snapshot?.brief?.tafWindows,
-                   snapshot?.brief?.hasForecastWindows == true {
-                    ForecastWindowSection(windows: windows)
+                switch mode {
+                case .preFlight: preFlightLayout
+                case .dayOf: dayOfLayout
+                case .closed: closedLayout
                 }
-
-                EnrouteHazardsSection(convective: snapshot?.convective,
-                                      internationalSigmets: snapshot?.internationalSigmets)
-
-                if let chain = snapshot?.chain {
-                    // The inbound leg lands at this flight's origin, so its ETA
-                    // reads in the origin's local time.
-                    ChainSection(chain: chain, arrivalZone: zones.origin) { inbound in
-                        Haptics.tap()
-                        inboundToShow = inbound
-                    }
-                }
-
-                MapPreviewSection(position: snapshot?.chain?.aircraftPosition,
-                                  flightIdent: flight.ident) {
-                    Haptics.tap()
-                    showingMap = true
-                }
-
-                WeatherSection(leg: leg,
-                               metar: snapshot?.metar,
-                               taf: snapshot?.taf,
-                               faa: snapshot?.faa,
-                               title: conditionsTitle,
-                               horizonNote: conditionsNote,
-                               onOpenWeather: { icao in
-                                   Haptics.tap()
-                                   popup = .weather(icao: icao,
-                                                    metar: snapshot?.metar?[icao],
-                                                    taf: snapshot?.taf?[icao],
-                                                    faa: snapshot?.faa?[icao])
-                               },
-                               onOpenFaa: { icao in
-                                   guard let record = snapshot?.faa?[icao] else { return }
-                                   Haptics.tap()
-                                   popup = .faaPrograms(icao: icao, record: record)
-                               })
-
-                OpsSection(originIcao: leg?.originIcao,
-                           destIcao: leg?.destIcao,
-                           hoursToDeparture: hoursToDeparture)
-
-                NarrativeSection(flight: flight)
-
-                alertHistory
             }
             .padding(.horizontal, 16)
         }
@@ -153,12 +157,15 @@ struct FlightDetailView: View {
                         registration: snapshot?.chain?.tailNumber ?? leg?.registration)
         }
         .fullScreenCover(item: $popup) { DetailPopupHost(popup: $0) }
+        // Glossary definitions are a half-height system sheet — quick to
+        // glance, quick to dismiss.
+        .sheet(item: $jargon) { JargonSheet(entry: $0) }
         .navigationDestination(item: $inboundToShow) { inbound in
             InboundFlightView(inbound: inbound)
         }
         .glossaryLinkHandler { entry in
             Haptics.tap()
-            popup = .jargon(entry)
+            jargon = entry
         }
         .task {
             // Staleness gate driven by the server's refresh_after_seconds
@@ -170,168 +177,194 @@ struct FlightDetailView: View {
         }
     }
 
-    // MARK: - Header
+    // MARK: - Pre-flight (>2h out): schedule-first, live detail collapsed
 
-    private var headerCard: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("\(leg?.originCity ?? leg?.originDisplay ?? "—") → \(leg?.destCity ?? leg?.destDisplay ?? "—")")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(Theme.inkSecondary)
-                    Text(leg?.status ?? "Awaiting data")
-                        .font(.title3.weight(.bold))
-                        .foregroundStyle(Theme.ink)
-                }
-                Spacer()
-                // Brief verdict is authoritative while fresh; the live
-                // status_only verdict may escalate over it, and governs once
-                // the brief goes stale.
-                FlightVerdictBadge(brief: snapshot?.brief, live: snapshot?.live)
-            }
-
-            Divider().overlay(Theme.hairline)
-
-            HStack(alignment: .top) {
-                timeColumn(title: leg?.originDisplay ?? "DEP",
-                           gate: gateText(leg?.gateOrigin, leg?.terminalOrigin),
-                           scheduled: leg?.scheduledOut,
-                           estimated: leg?.estimatedOut,
-                           actual: leg?.actualOut,
-                           zone: zones.origin,
-                           alignment: .leading)
-                Spacer()
-                VStack(spacing: 4) {
-                    LucideIcon(name: "plane", size: 18, fallback: "airplane")
-                        .foregroundStyle(Theme.teal)
-                    if let progress = leg?.progressPercent, progress > 0 {
-                        Text("\(Int(progress))%")
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(Theme.teal)
-                    }
-                    if let tail = leg?.registration {
-                        Text(tail)
-                            .font(.caption2)
-                            .foregroundStyle(Theme.inkSecondary)
-                    }
-                }
-                Spacer()
-                timeColumn(title: leg?.destDisplay ?? "ARR",
-                           gate: gateText(leg?.gateDestination, leg?.terminalDestination),
-                           scheduled: leg?.scheduledIn,
-                           estimated: leg?.estimatedIn,
-                           actual: leg?.actualIn,
-                           zone: zones.destination,
-                           alignment: .trailing)
-            }
-
-            if let refreshed = snapshot?.lastRefreshed {
-                HStack(spacing: 4) {
-                    LucideIcon(name: "history", size: 11, fallback: "clock")
-                    Text(statusCaption(refreshed))
-                }
-                .font(.caption2)
-                .foregroundStyle(Theme.inkSecondary)
+    @ViewBuilder
+    private var preFlightLayout: some View {
+        heroCard
+        edctBannerView
+        predictedTimesCard
+        forecastWindows
+        BriefSection(flight: flight)
+        signalsSection
+        if snapshot?.chain != nil {
+            CollapsibleSection(icon: "link", title: "Your aircraft",
+                               subtitle: "Inbound leg and turn time") {
+                chainSection
             }
         }
-        .cardStyle()
-    }
-
-    /// "Just updated" instead of the awkward "Updated in 0s"; when a brief
-    /// exists and predates the status refresh, say both ages so a fresh status
-    /// next to an old brief can't read as one coherent snapshot.
-    private func statusCaption(_ refreshed: Date) -> String {
-        let isFresh = Date().timeIntervalSince(refreshed) < 60
-        if let runAt = snapshot?.brief?.runAt, runAt < refreshed {
-            let status = isFresh ? "Live status just updated" : "Live status updated \(TimeFmt.relative(refreshed))"
-            return "\(status) · brief run \(TimeFmt.relative(runAt))"
+        if snapshot?.chain?.aircraftPosition != nil {
+            CollapsibleSection(icon: "map", title: "Live position") {
+                mapSection
+            }
         }
-        return isFresh ? "Just updated" : "Updated \(TimeFmt.relative(refreshed))"
+        if leg?.originIcao != nil || leg?.destIcao != nil {
+            CollapsibleSection(icon: "cloud-sun", title: "Airport conditions",
+                               subtitle: "Reference only at this horizon") {
+                weatherSection
+                EnrouteHazardsSection(convective: snapshot?.convective,
+                                      internationalSigmets: snapshot?.internationalSigmets)
+            }
+        }
+        // Already horizon-gated: locks itself beyond the same-day window.
+        OpsSection(originIcao: leg?.originIcao,
+                   destIcao: leg?.destIcao,
+                   hoursToDeparture: hoursToDeparture)
+        NarrativeSection(flight: flight)
+        alertHistory
     }
 
-    private func gateText(_ gate: String?, _ terminal: String?) -> String? {
-        switch (gate, terminal) {
-        case let (gate?, terminal?): return "T\(terminal) · Gate \(gate)"
-        case let (gate?, nil): return "Gate \(gate)"
-        case let (nil, terminal?): return "Terminal \(terminal)"
-        default: return nil
+    // MARK: - Day-of / in-air: next event first, map promoted
+
+    @ViewBuilder
+    private var dayOfLayout: some View {
+        heroCard
+        // Live map promoted to slot 2 (renders only when a position exists).
+        mapSection
+        edctBannerView
+        predictedTimesCard
+        weatherSection
+        forecastWindows
+        BriefSection(flight: flight)
+        signalsSection
+        EnrouteHazardsSection(convective: snapshot?.convective,
+                              internationalSigmets: snapshot?.internationalSigmets)
+        chainSection
+        OpsSection(originIcao: leg?.originIcao,
+                   destIcao: leg?.destIcao,
+                   hoursToDeparture: hoursToDeparture)
+        NarrativeSection(flight: flight)
+        alertHistory
+    }
+
+    // MARK: - Landed / cancelled: closure card + collapsed record
+
+    @ViewBuilder
+    private var closedLayout: some View {
+        // PredictedTimesCard is suppressed entirely here — history is never
+        // restated as prediction.
+        FlightClosureCard(leg: leg,
+                          phase: truthPhase,
+                          zones: zones,
+                          lastRefreshed: snapshot?.lastRefreshed)
+        CollapsibleSection(icon: "archive", title: "Flight record",
+                           subtitle: "Actual times and alert history") {
+            FlightRecordCard(leg: leg, zones: zones)
+            alertHistory
         }
     }
 
-    private func timeColumn(title: String, gate: String?, scheduled: String?,
-                            estimated: String?, actual: String?, zone: TimeZone?,
-                            alignment: HorizontalAlignment) -> some View {
-        let effective = actual ?? estimated
-        let shown = effective ?? scheduled
-        return VStack(alignment: alignment, spacing: 3) {
-            Text(title)
-                .font(.system(.title2, design: .rounded).weight(.bold))
-                .foregroundStyle(Theme.ink)
-            if let gate {
-                Text(gate)
-                    .font(.caption)
-                    .foregroundStyle(Theme.inkSecondary)
+    // MARK: - Shared building blocks
+
+    private var heroCard: some View {
+        FlightHeroCard(leg: leg,
+                       phase: truthPhase,
+                       taxi: heroTaxi,
+                       position: heroPosition,
+                       nextEventEntry: heroNextEventEntry,
+                       brief: brief,
+                       live: live,
+                       zones: zones,
+                       asOf: heroAsOf,
+                       isStale: heroIsStale) {
+            Task { await store.refresh(flight) }
+        }
+    }
+
+    /// FAA-assigned wheels-up slot — the top fact when present, always ABOVE
+    /// the predicted-times grid. The live layer re-attaches cached EDCTs, so
+    /// it wins here too.
+    @ViewBuilder
+    private var edctBannerView: some View {
+        if let edct = live?.predictedTimes?.edct ?? brief?.predictedTimes?.edct,
+           edct.edct != nil {
+            EdctBanner(edct: edct, originZone: zones.origin)
+        }
+    }
+
+    /// Server-predicted times — live layer wins on every refresh; the brief
+    /// only feeds this before the first live pull.
+    @ViewBuilder
+    private var predictedTimesCard: some View {
+        if let live, let times = live.predictedTimes {
+            PredictedTimesCard(times: times,
+                               timezones: live.timezones ?? brief?.timezones,
+                               zones: zones,
+                               isStale: live.isStale, runAt: live.fetchedAt,
+                               staleVerb: "refresh") {
+                Task { await store.refresh(flight) }
             }
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Text(TimeFmt.clock(shown, zone: zone))
-                    .font(.headline.weight(.semibold))
-                    .monospacedDigit()
-                    .contentTransition(.numericText())
-                    .animation(.snappy, value: shown)
-                    .foregroundStyle(slipColor(scheduled: scheduled, effective: effective))
-                if let label = TimeFmt.zoneLabel(zone, atISO: shown) {
-                    Text(label)
-                        .font(.caption2.weight(.bold))
-                        .textCase(.uppercase)
-                        .kerning(0.6)
-                        .foregroundStyle(Theme.inkSecondary)
-                }
-            }
-            // An arrival on the next local day is a fact worth stating outright.
-            if let dayLabel = crossesDayLabel(shown, zone: zone) {
-                Text(dayLabel)
-                    .font(.caption2.weight(.medium))
-                    .foregroundStyle(Theme.teal)
-            }
-            if let effective, let sched = scheduled,
-               TimeFmt.parseISO(effective) != TimeFmt.parseISO(sched) {
-                Text("Sched \(TimeFmt.clock(sched, zone: zone))")
-                    .font(.caption2)
-                    .monospacedDigit()
-                    .strikethrough()
-                    .foregroundStyle(Theme.inkSecondary)
+        } else if let brief, let times = brief.predictedTimes {
+            PredictedTimesCard(times: times, timezones: brief.timezones, zones: zones,
+                               isStale: brief.isStale, runAt: brief.runAt) {
+                Task { try? await store.runBrief(for: flight) }
             }
         }
     }
 
-    /// "Tue Aug 18" when this time falls on a different local day than the
-    /// origin's departure day — the overnight-arrival case.
-    private func crossesDayLabel(_ iso: String?, zone: TimeZone?) -> String? {
-        let departure = leg?.actualOut ?? leg?.estimatedOut ?? leg?.scheduledOut
-        guard iso != departure,
-              TimeFmt.crossesLocalDay(iso, zone: zone,
-                                      reference: departure, referenceZone: zones.origin) else {
-            return nil
+    /// Terminal forecast in the ±60 min window around the predicted times —
+    /// the only weather block that can move the verdict.
+    @ViewBuilder
+    private var forecastWindows: some View {
+        if let windows = brief?.tafWindows, brief?.hasForecastWindows == true {
+            ForecastWindowSection(windows: windows)
         }
-        return TimeFmt.weekdayDate(iso, zone: zone)
     }
 
-    private func slipColor(scheduled: String?, effective: String?) -> Color {
-        SlipSeverity.of(scheduled: scheduled, effective: effective)
-            .textColor(default: Theme.ink)
+    /// Once a brief supplies effects[], those replace the client signal list
+    /// as the explanation on this screen.
+    @ViewBuilder
+    private var signalsSection: some View {
+        if !briefHasEffects {
+            SignalListSection(title: "Flight status signals",
+                              icon: "activity",
+                              caption: "From the airline's status feed and this aircraft's own chain. Run the brief for the full cause → effect picture.",
+                              signals: flightSignals) { signal in
+                Haptics.tap()
+                popup = .riskSignal(signal)
+            }
+        }
     }
 
-    private func errorBanner(_ message: String) -> some View {
-        HStack(spacing: 10) {
-            LucideIcon(name: "wifi-off", size: 16, fallback: "wifi.slash")
-            Text(message)
-                .font(.caption)
+    @ViewBuilder
+    private var chainSection: some View {
+        if let chain = snapshot?.chain {
+            // The inbound leg lands at this flight's origin, so its ETA
+            // reads in the origin's local time.
+            ChainSection(chain: chain, arrivalZone: zones.origin) { inbound in
+                Haptics.tap()
+                inboundToShow = inbound
+            }
         }
-        .foregroundStyle(Theme.red)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(Theme.red.opacity(0.08))
-        .clipShape(.rect(cornerRadius: 12))
+    }
+
+    private var mapSection: some View {
+        MapPreviewSection(position: snapshot?.chain?.aircraftPosition,
+                          flightIdent: flight.ident) {
+            Haptics.tap()
+            showingMap = true
+        }
+    }
+
+    private var weatherSection: some View {
+        WeatherSection(leg: leg,
+                       metar: snapshot?.metar,
+                       taf: snapshot?.taf,
+                       faa: snapshot?.faa,
+                       title: conditionsTitle,
+                       horizonNote: conditionsNote,
+                       onOpenWeather: { icao in
+                           Haptics.tap()
+                           popup = .weather(icao: icao,
+                                            metar: snapshot?.metar?[icao],
+                                            taf: snapshot?.taf?[icao],
+                                            faa: snapshot?.faa?[icao])
+                       },
+                       onOpenFaa: { icao in
+                           guard let record = snapshot?.faa?[icao] else { return }
+                           Haptics.tap()
+                           popup = .faaPrograms(icao: icao, record: record)
+                       })
     }
 
     // MARK: - Alert history

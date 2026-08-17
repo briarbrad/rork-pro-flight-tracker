@@ -52,33 +52,17 @@ struct PredictedTimesCard: View {
                     .foregroundStyle(Theme.inkSecondary)
             }
 
-            if isStale, let runAt {
-                staleRow(runAt)
+            // One freshness language: "as of Xm ago", amber with the
+            // user-initiated refresh affordance once past the window.
+            if let runAt {
+                FreshnessCaption(asOf: runAt,
+                                 isStale: isStale,
+                                 staleHint: "\(staleVerb) for the live picture.",
+                                 onAction: onRerun)
             }
         }
         .opacity(isStale ? 0.75 : 1)
         .cardStyle()
-    }
-
-    private func staleRow(_ runAt: Date) -> some View {
-        Button {
-            Haptics.tap()
-            onRerun?()
-        } label: {
-            HStack(spacing: 6) {
-                LucideIcon(name: "history", size: 11, fallback: "clock")
-                    .foregroundStyle(Theme.gold)
-                Text("As of \(TimeFmt.relative(runAt)) — \(staleVerb) for the live picture.")
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .font(.caption2.weight(.semibold))
-            .foregroundStyle(Theme.goldText)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(10)
-            .background(Theme.gold.opacity(0.1))
-            .clipShape(.rect(cornerRadius: Theme.Radius.well))
-        }
     }
 
     private var originZone: TimeZone? {

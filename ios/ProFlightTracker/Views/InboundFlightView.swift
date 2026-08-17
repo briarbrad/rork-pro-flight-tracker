@@ -16,6 +16,7 @@ struct InboundFlightView: View {
     @State private var isLoading: Bool = false
     @State private var hasLoaded: Bool = false
     @State private var popup: DetailPopup?
+    @State private var jargon: GlossaryEntry?
     @State private var isAdding: Bool = false
     @State private var addMessage: String?
     @State private var addSucceeded: Bool = false
@@ -67,9 +68,10 @@ struct InboundFlightView: View {
         .navigationTitle(flight.ident ?? "Inbound")
         .navigationBarTitleDisplayMode(.inline)
         .fullScreenCover(item: $popup) { DetailPopupHost(popup: $0) }
+        .sheet(item: $jargon) { JargonSheet(entry: $0) }
         .glossaryLinkHandler { entry in
             Haptics.tap()
-            popup = .jargon(entry)
+            jargon = entry
         }
         .task { await load() }
     }

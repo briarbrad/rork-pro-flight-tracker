@@ -15,107 +15,33 @@ struct BriefSection: View {
     @State private var showExcluded: Bool = false
 
     private var brief: StoredBrief? { store.snapshots[flight.id]?.brief }
-    /// The server-computed live layer from the main refresh — the render
-    /// source for phase and predicted times. The brief is enrichment only
-    /// and loses to this wherever they disagree.
+    /// The server-computed live layer from the main refresh — read here only
+    /// to gate the horizon row on the FRESHEST phase.
     private var live: StoredLive? { store.snapshots[flight.id]?.live }
-    /// Origin/destination zones for the client-side fallback when the backend's
-    /// own zone lookup comes back empty.
-    private var zones: FlightZones {
-        FlightZones.resolve(flight: store.snapshots[flight.id]?.flight,
-                            brief: live?.timezones ?? brief?.timezones)
-    }
     private var isRunning: Bool { store.briefing.contains(flight.id) }
     private var narrativeWriting: Bool { store.narrativePending.contains(flight.id) }
     /// The freshest phase code on file — live layer first, brief fallback.
     private var activePhaseCode: String? { live?.phase?.code ?? brief?.phase?.code }
 
     var body: some View {
-        VStack(spacing: 14) {
-            // Phase is the primary state — read before horizon. Once the
-            // aircraft is out of the gate (or the flight is over), the
-            // screen is organised around "what happens next", not the
-            // schedule.
-            phaseCardView
-            // Headline: server-predicted times — when does this flight GO.
-            predictedTimesView
-            // FAA-controlled wheels-up slot: the top fact when present. The
-            // live layer re-attaches cached EDCTs, so it wins here too.
-            if let edct = live?.predictedTimes?.edct ?? brief?.predictedTimes?.edct,
-               edct.edct != nil {
-                EdctBanner(edct: edct, originZone: zones.origin)
-            }
-            if let brief {
-                verdictCard(brief)
-            } else {
-                VStack(alignment: .leading, spacing: 12) {
-                    SectionHeader(icon: "radar", title: "Pre-flight brief")
-                    if isRunning {
-                        runningRow
-                    } else {
-                        idleContent
-                    }
-                    if let runError {
-                        errorRow(runError)
-                    }
+        // Phase, predicted times, and the EDCT banner are owned by the
+        // phase-adaptive flight screen — this section is ONLY the brief
+        // verdict card (and the run-brief affordance before one exists).
+        if let brief {
+            verdictCard(brief)
+        } else {
+            VStack(alignment: .leading, spacing: 12) {
+                SectionHeader(icon: "radar", title: "Pre-flight brief")
+                if isRunning {
+                    runningRow
+                } else {
+                    idleContent
                 }
-                .cardStyle()
+                if let runError {
+                    errorRow(runError)
+                }
             }
-        }
-    }
-
-    /// Live layer wins on every refresh; the brief's phase only renders
-    /// before the first live pull (fallback path).
-    @ViewBuilder
-    private var phaseCardView: some View {
-        if let live, let phase = live.phase, phase.code != "PRE_GATE" {
-            PhaseCard(phase: phase,
-                      taxi: live.taxi,
-                      position: freshBriefPosition(matching: phase),
-                      asOf: live.fetchedAt,
-                      zones: zones,
-                      nextEventEntry: live.nextEventPredictedTime,
-                      isStale: live.isStale,
-                      staleMessage: "Live status as of \(TimeFmt.relative(live.fetchedAt)) — refresh for the current picture.") {
-                Task { await store.refresh(flight) }
-            }
-        } else if live == nil, let brief, let phase = brief.phase, phase.code != "PRE_GATE" {
-            PhaseCard(phase: phase,
-                      taxi: brief.taxi,
-                      position: brief.position,
-                      asOf: brief.runAt,
-                      zones: zones,
-                      nextEventEntry: brief.nextEventPredictedTime,
-                      isStale: brief.isStale,
-                      staleMessage: "As of \(TimeFmt.relative(brief.runAt)) — re-run the brief for the live picture.") {
-                Task { await runBrief() }
-            }
-        }
-    }
-
-    /// The live layer carries no position block (one query, no ADS-B) — the
-    /// brief's position is enrichment on it, but only while the brief is
-    /// fresh and still describes the same phase.
-    private func freshBriefPosition(matching phase: BriefPhase) -> BriefPosition? {
-        guard let brief, !brief.isStale, brief.phase?.code == phase.code else { return nil }
-        return brief.position
-    }
-
-    @ViewBuilder
-    private var predictedTimesView: some View {
-        if let live, let times = live.predictedTimes {
-            PredictedTimesCard(times: times,
-                               timezones: live.timezones ?? brief?.timezones,
-                               zones: zones,
-                               isStale: live.isStale, runAt: live.fetchedAt,
-                               staleVerb: "refresh") {
-                Task { await store.refresh(flight) }
-            }
-        } else if let brief, let times = brief.predictedTimes {
-            PredictedTimesCard(times: times, timezones: brief.timezones, zones: zones,
-                               isStale: brief.isStale, runAt: brief.runAt) {
-                Task { await runBrief() }
-            }
+            .cardStyle()
         }
     }
 
@@ -243,36 +169,14 @@ struct BriefSection: View {
                 excludedBlock(brief.sourcesExcluded)
             }
 
-            // Server staleness threshold, not a polling trigger: the brief
-            // stays user-initiated, this just says when it stopped describing
-            // the flight's current state.
-            if brief.isStale {
-                Button {
-                    Haptics.tap()
-                    Task { await runBrief() }
-                } label: {
-                    HStack(spacing: 6) {
-                        LucideIcon(name: "history", size: 11, fallback: "clock")
-                            .foregroundStyle(Theme.gold)
-                        Text("Brief run \(TimeFmt.relative(brief.runAt)) — the flight has moved on. Re-run for the live picture.")
-                            .multilineTextAlignment(.leading)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(Theme.goldText)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(10)
-                    .background(Theme.gold.opacity(0.1))
-                    .clipShape(.rect(cornerRadius: Theme.Radius.well))
-                }
-                .disabled(isRunning)
-            } else {
-                HStack(spacing: 4) {
-                    LucideIcon(name: "history", size: 10, fallback: "clock")
-                    Text("Brief run \(TimeFmt.relative(brief.runAt))")
-                }
-                .font(.caption2)
-                .foregroundStyle(Theme.inkSecondary)
+            // One freshness language: "Brief run Xm ago", amber with the
+            // re-run affordance once the server staleness threshold passes.
+            // Never a polling trigger — the brief stays user-initiated.
+            FreshnessCaption(asOf: brief.runAt,
+                             prefix: "Brief run",
+                             isStale: brief.isStale,
+                             staleHint: "the flight has moved on. Re-run for the live picture.") {
+                Task { await runBrief() }
             }
         }
         // A stale brief greys out — it described the flight as of run time.
