@@ -198,12 +198,13 @@ struct BriefSection: View {
                 } label: {
                     HStack(spacing: 6) {
                         LucideIcon(name: "history", size: 11, fallback: "clock")
+                            .foregroundStyle(Theme.gold)
                         Text("Brief run \(TimeFmt.relative(brief.runAt)) — the flight has moved on. Re-run for the live picture.")
                             .multilineTextAlignment(.leading)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     .font(.caption2.weight(.semibold))
-                    .foregroundStyle(Theme.gold)
+                    .foregroundStyle(Theme.goldText)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(10)
                     .background(Theme.gold.opacity(0.1))

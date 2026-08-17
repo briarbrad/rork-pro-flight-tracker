@@ -41,8 +41,10 @@ private struct WindowBlock: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(role.uppercased())
-                    .font(.system(size: 10, weight: .heavy))
+                Text(role)
+                    .font(.caption2.weight(.bold))
+                    .textCase(.uppercase)
+                    .kerning(0.6)
                     .foregroundStyle(Theme.inkSecondary)
                 if let airport = window.airport {
                     GlossaryText(text: airport, font: .caption.weight(.semibold), color: Theme.ink)
@@ -67,7 +69,7 @@ private struct WindowBlock: View {
                         ForEach(chips, id: \.self) { chip in
                             Text(chip)
                                 .font(.caption2.weight(.medium))
-                                .foregroundStyle(Theme.gold)
+                                .foregroundStyle(Theme.goldText)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4)
                                 .background(Theme.gold.opacity(0.12))
@@ -176,7 +178,7 @@ private struct CategoryPill: View {
     var body: some View {
         Text(category)
             .font(.system(size: 11, weight: .heavy))
-            .foregroundStyle(emphasized ? .white : color)
+            .foregroundStyle(emphasized ? .white : Theme.textVariant(of: color))
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
             .background(emphasized ? color : color.opacity(0.13))
@@ -196,8 +198,10 @@ private struct PeriodRow: View {
                     .monospacedDigit()
                     .foregroundStyle(Theme.ink)
                 Text(period.groupLabel)
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(period.isConditional ? Theme.gold : Theme.inkSecondary)
+                    .font(.caption2.weight(.bold))
+                    .textCase(.uppercase)
+                    .kerning(0.6)
+                    .foregroundStyle(period.isConditional ? Theme.goldText : Theme.inkSecondary)
             }
             .frame(width: 84, alignment: .leading)
 
@@ -206,7 +210,9 @@ private struct PeriodRow: View {
                     CategoryPill(category: period.categoryCode, emphasized: false)
                     if period.isConditional {
                         Text("temporary")
-                            .font(.system(size: 9, weight: .semibold))
+                            .font(.caption2.weight(.bold))
+                            .textCase(.uppercase)
+                            .kerning(0.6)
                             .foregroundStyle(Theme.inkSecondary)
                     }
                 }

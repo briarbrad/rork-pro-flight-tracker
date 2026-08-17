@@ -35,8 +35,9 @@ struct AirportsView: View {
                     }
                 }
                 .padding(.horizontal, 16)
-                .padding(.bottom, 32)
             }
+            // Keeps the floating tab bar from covering the last card.
+            .contentMargins(.bottom, 24, for: .scrollContent)
             .background(Theme.canvas)
             .navigationTitle("Airports")
             .fullScreenCover(item: $popup) { DetailPopupHost(popup: $0) }

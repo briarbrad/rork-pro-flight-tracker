@@ -478,10 +478,11 @@ struct AirportWeatherCard: View {
         } else {
             HStack(spacing: 4) {
                 LucideIcon(name: "circle-check", size: 11, fallback: "checkmark.circle")
+                    .foregroundStyle(Theme.green)
                 Text("No active FAA programs")
                     .font(.caption2.weight(.medium))
             }
-            .foregroundStyle(Theme.green)
+            .foregroundStyle(Theme.greenText)
         }
     }
 
@@ -491,13 +492,14 @@ struct AirportWeatherCard: View {
         } label: {
             HStack(spacing: 4) {
                 LucideIcon(name: icon, size: 11, fallback: "exclamationmark.triangle")
+                    .foregroundStyle(color)
                 Text(text)
                     .font(.caption2.weight(.bold))
                 if onOpenFaa != nil {
                     LucideIcon(name: "chevron-right", size: 9, fallback: "chevron.right")
                 }
             }
-            .foregroundStyle(color)
+            .foregroundStyle(Theme.textVariant(of: color))
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
             .background(color.opacity(0.13))

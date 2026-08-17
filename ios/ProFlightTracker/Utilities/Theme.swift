@@ -10,6 +10,19 @@ enum Theme {
     static let gold = Color(red: 0.918, green: 0.639, blue: 0.043)
     static let red = Color(red: 0.804, green: 0.235, blue: 0.2)
     static let green = Color(red: 0.165, green: 0.573, blue: 0.396)
+    /// Darkened companions that pass WCAG AA on white — gold (#EAA30B) is
+    /// ~2.15:1 and green ~3.9:1, both illegible at chip sizes. Use these for
+    /// TEXT in chips/badges/banners; keep the bright hues for fills and icons.
+    static let goldText = Color(red: 0.541, green: 0.38, blue: 0.0)
+    static let greenText = Color(red: 0.118, green: 0.439, blue: 0.314)
+
+    /// Text-safe variant of an accent: gold and green darken to their
+    /// AA-passing companions, every other color passes through unchanged.
+    static func textVariant(of color: Color) -> Color {
+        if color == gold { return goldText }
+        if color == green { return greenText }
+        return color
+    }
     static let ink = Color(red: 0.122, green: 0.161, blue: 0.2)
     static let inkSecondary = Color(red: 0.373, green: 0.42, blue: 0.463)
     static let hairline = Color(red: 0.882, green: 0.871, blue: 0.843)

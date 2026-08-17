@@ -124,8 +124,9 @@ struct FlightDetailView: View {
                 alertHistory
             }
             .padding(.horizontal, 16)
-            .padding(.bottom, 32)
         }
+        // Keeps the floating tab bar from covering the last card.
+        .contentMargins(.bottom, 24, for: .scrollContent)
         .background(Theme.canvas)
         .navigationTitle(flight.ident)
         .navigationBarTitleDisplayMode(.inline)
@@ -224,13 +225,25 @@ struct FlightDetailView: View {
             if let refreshed = snapshot?.lastRefreshed {
                 HStack(spacing: 4) {
                     LucideIcon(name: "history", size: 11, fallback: "clock")
-                    Text("Updated \(TimeFmt.relative(refreshed))")
+                    Text(statusCaption(refreshed))
                 }
                 .font(.caption2)
                 .foregroundStyle(Theme.inkSecondary)
             }
         }
         .cardStyle()
+    }
+
+    /// "Just updated" instead of the awkward "Updated in 0s"; when a brief
+    /// exists and predates the status refresh, say both ages so a fresh status
+    /// next to an old brief can't read as one coherent snapshot.
+    private func statusCaption(_ refreshed: Date) -> String {
+        let isFresh = Date().timeIntervalSince(refreshed) < 60
+        if let runAt = snapshot?.brief?.runAt, runAt < refreshed {
+            let status = isFresh ? "Live status just updated" : "Live status updated \(TimeFmt.relative(refreshed))"
+            return "\(status) · brief run \(TimeFmt.relative(runAt))"
+        }
+        return isFresh ? "Just updated" : "Updated \(TimeFmt.relative(refreshed))"
     }
 
     private func gateText(_ gate: String?, _ terminal: String?) -> String? {
@@ -260,10 +273,14 @@ struct FlightDetailView: View {
                 Text(TimeFmt.clock(shown, zone: zone))
                     .font(.headline.weight(.semibold))
                     .monospacedDigit()
+                    .contentTransition(.numericText())
+                    .animation(.snappy, value: shown)
                     .foregroundStyle(slipColor(scheduled: scheduled, effective: effective))
                 if let label = TimeFmt.zoneLabel(zone, atISO: shown) {
                     Text(label)
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(.caption2.weight(.bold))
+                        .textCase(.uppercase)
+                        .kerning(0.6)
                         .foregroundStyle(Theme.inkSecondary)
                 }
             }
@@ -277,6 +294,7 @@ struct FlightDetailView: View {
                TimeFmt.parseISO(effective) != TimeFmt.parseISO(sched) {
                 Text("Sched \(TimeFmt.clock(sched, zone: zone))")
                     .font(.caption2)
+                    .monospacedDigit()
                     .strikethrough()
                     .foregroundStyle(Theme.inkSecondary)
             }
@@ -300,7 +318,7 @@ struct FlightDetailView: View {
               let eff = TimeFmt.parseISO(effective) else { return Theme.ink }
         let slip = eff.timeIntervalSince(sched) / 60
         if slip >= 45 { return Theme.red }
-        if slip >= 15 { return Theme.gold }
+        if slip >= 15 { return Theme.goldText }
         return Theme.ink
     }
 

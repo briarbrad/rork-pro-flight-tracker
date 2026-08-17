@@ -102,7 +102,9 @@ struct FlightCardView: View {
                 .foregroundStyle(tint)
             if let label = TimeFmt.zoneLabel(zone, atISO: iso), iso != nil {
                 Text(label)
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(.caption2.weight(.bold))
+                    .textCase(.uppercase)
+                    .kerning(0.6)
                     .foregroundStyle(Theme.inkSecondary.opacity(0.8))
             }
         }

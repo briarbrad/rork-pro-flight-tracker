@@ -54,12 +54,13 @@ struct PhaseCard: View {
         } label: {
             HStack(spacing: 6) {
                 LucideIcon(name: "history", size: 11, fallback: "clock")
+                    .foregroundStyle(Theme.gold)
                 Text("As of \(TimeFmt.relative(brief.runAt)) — re-run the brief for the live picture.")
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .font(.caption2.weight(.semibold))
-            .foregroundStyle(Theme.gold)
+            .foregroundStyle(Theme.goldText)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(10)
             .background(Theme.gold.opacity(0.1))
@@ -85,17 +86,15 @@ struct PhaseCard: View {
             Spacer()
 
             // Advances with wall-clock time — the server's value is frozen at
-            // brief-run time and would read "In phase 2 min" forever.
+            // brief-run time and would read "In phase 2 min" forever. Reads as
+            // a continuation of the phase pill: "In the air · started 2 min ago".
             if let elapsed = brief.elapsedInPhaseMinNow, phase.isEnRoute {
-                VStack(alignment: .trailing, spacing: 1) {
-                    Text("In phase")
-                        .font(.caption2)
-                        .foregroundStyle(Theme.inkSecondary)
-                    Text(durationText(elapsed))
-                        .font(.caption.weight(.bold))
-                        .monospacedDigit()
-                        .foregroundStyle(Theme.ink)
-                }
+                Text("started \(durationText(elapsed)) ago")
+                    .font(.caption.weight(.semibold))
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
+                    .animation(.snappy, value: elapsed)
+                    .foregroundStyle(Theme.inkSecondary)
             }
         }
     }
@@ -112,8 +111,10 @@ struct PhaseCard: View {
                 if phase.isControlled {
                     // FAA-assigned time — materially harder than an estimate.
                     Text("FAA-CONTROLLED")
-                        .font(.system(size: 9, weight: .heavy))
-                        .foregroundStyle(Theme.gold)
+                        .font(.caption2.weight(.bold))
+                        .textCase(.uppercase)
+                        .kerning(0.6)
+                        .foregroundStyle(Theme.goldText)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
                         .background(Theme.gold.opacity(0.14))
@@ -125,10 +126,15 @@ struct PhaseCard: View {
                 Text(nextEventTimeText(phase))
                     .font(.system(.title2, design: .rounded).weight(.bold))
                     .monospacedDigit()
+                    .contentTransition(.numericText())
+                    .animation(.snappy, value: nextEventTimeText(phase))
                     .foregroundStyle(phase.isOverdue ? Theme.red : Theme.ink)
                 if let countdown = countdownText(phase) {
                     Text(countdown)
                         .font(.subheadline.weight(.semibold))
+                        .monospacedDigit()
+                        .contentTransition(.numericText())
+                        .animation(.snappy, value: countdown)
                         .foregroundStyle(phase.isOverdue ? Theme.red : Theme.teal)
                 }
             }
@@ -168,7 +174,7 @@ struct PhaseCard: View {
             HStack(spacing: 8) {
                 Text(taxiLabel(taxi.assessmentCode))
                     .font(.caption.weight(.heavy))
-                    .foregroundStyle(taxiColor(taxi.assessmentCode))
+                    .foregroundStyle(Theme.textVariant(of: taxiColor(taxi.assessmentCode)))
                     .padding(.horizontal, 8)
                     .padding(.vertical, 3)
                     .background(taxiColor(taxi.assessmentCode).opacity(0.13))

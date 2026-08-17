@@ -64,12 +64,13 @@ struct PredictedTimesCard: View {
         } label: {
             HStack(spacing: 6) {
                 LucideIcon(name: "history", size: 11, fallback: "clock")
+                    .foregroundStyle(Theme.gold)
                 Text("As of \(TimeFmt.relative(runAt)) — re-run the brief for the live picture.")
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .font(.caption2.weight(.semibold))
-            .foregroundStyle(Theme.gold)
+            .foregroundStyle(Theme.goldText)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(10)
             .background(Theme.gold.opacity(0.1))
@@ -176,8 +177,9 @@ struct PredictedTimesCard: View {
                     .background(Theme.tealDeep)
                     .clipShape(.capsule)
                 Text("FAA slot")
-                    .font(.system(size: 8, weight: .heavy))
+                    .font(.caption2.weight(.bold))
                     .textCase(.uppercase)
+                    .kerning(0.6)
                     .foregroundStyle(Theme.tealDeep)
             }
         } else {
@@ -200,7 +202,8 @@ struct PredictedTimesCard: View {
             let late = delay > 0
             Text(late ? "+\(delay) min" : "on time")
                 .font(.caption2.weight(.bold))
-                .foregroundStyle(late ? Theme.gold : Theme.green)
+                .monospacedDigit()
+                .foregroundStyle(late ? Theme.goldText : Theme.greenText)
                 .padding(.horizontal, 7)
                 .padding(.vertical, 2)
                 .background((late ? Theme.gold : Theme.green).opacity(0.12))
@@ -366,8 +369,10 @@ struct EffectRow: View {
                                  color: Theme.ink)
                     if effect.severityCode != "INFO" {
                         Text(effect.severityCode)
-                            .font(.system(size: 8, weight: .heavy))
-                            .foregroundStyle(color)
+                            .font(.caption2.weight(.bold))
+                            .textCase(.uppercase)
+                            .kerning(0.6)
+                            .foregroundStyle(Theme.textVariant(of: color))
                             .padding(.horizontal, 5)
                             .padding(.vertical, 2)
                             .background(color.opacity(0.12))

@@ -41,6 +41,8 @@ struct AlertsView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        // Keeps the floating tab bar from covering the last alert card.
+        .contentMargins(.bottom, 24, for: .scrollContent)
     }
 
     private var emptyState: some View {

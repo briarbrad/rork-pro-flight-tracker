@@ -58,7 +58,9 @@ struct BriefVerdictBadge: View {
 
             if let confidence = brief.confidence {
                 Text("\(confidence.capitalized) confidence")
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(.caption2.weight(.bold))
+                    .textCase(.uppercase)
+                    .kerning(0.6)
                     .foregroundStyle(Theme.inkSecondary)
             }
         }

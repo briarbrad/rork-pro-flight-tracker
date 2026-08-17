@@ -155,7 +155,9 @@ struct InboundFlightView: View {
                     .foregroundStyle(slipColor(scheduled: scheduled, effective: effective))
                 if let label = TimeFmt.zoneLabel(zone, atISO: shown) {
                     Text(label)
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(.caption2.weight(.bold))
+                        .textCase(.uppercase)
+                        .kerning(0.6)
                         .foregroundStyle(Theme.inkSecondary)
                 }
             }
@@ -174,7 +176,7 @@ struct InboundFlightView: View {
               let eff = TimeFmt.parseISO(effective) else { return Theme.ink }
         let slip = eff.timeIntervalSince(sched) / 60
         if slip >= 45 { return Theme.red }
-        if slip >= 15 { return Theme.gold }
+        if slip >= 15 { return Theme.goldText }
         return Theme.ink
     }
 
