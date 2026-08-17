@@ -11,7 +11,8 @@ struct FlightCardView: View {
     private var assessment: RiskAssessment? { snapshot?.assessment }
     /// Departure time in the origin's zone, arrival in the destination's.
     private var zones: FlightZones {
-        FlightZones.resolve(flight: leg, brief: snapshot?.brief?.timezones)
+        FlightZones.resolve(flight: leg,
+                            brief: snapshot?.live?.timezones ?? snapshot?.brief?.timezones)
     }
 
     var body: some View {
@@ -29,10 +30,9 @@ struct FlightCardView: View {
                 if isRefreshing {
                     ProgressView().controlSize(.small).tint(Theme.teal)
                 }
-                // Verdicts come exclusively from /api/brief — no brief, no badge.
-                if let brief = snapshot?.brief {
-                    BriefVerdictBadge(brief: brief)
-                }
+                // Brief verdict while fresh; the live status_only verdict
+                // escalates over it and governs once the brief goes stale.
+                FlightVerdictBadge(brief: snapshot?.brief, live: snapshot?.live)
             }
 
             routeRow

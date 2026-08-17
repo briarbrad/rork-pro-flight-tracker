@@ -258,7 +258,10 @@ struct InboundFlightView: View {
 
         // One careful AeroAPI pull for the freshest status of this leg.
         if let ident = inbound.ident {
-            let date = TimeFmt.parseISO(inbound.scheduledOut).map { TimeFmt.apiDate($0) }
+            // Date key in the inbound's ORIGIN-local day — the backend matches
+            // flights on origin-local date, not UTC.
+            let originZone = AirportTimeZones.zone(forAnyOf: inbound.originIcao, inbound.originIata)
+            let date = TimeFmt.parseISO(inbound.scheduledOut).map { TimeFmt.apiDate($0, zone: originZone) }
             if let status = try? await API.flightStatus(flight: ident, date: date),
                let legs = status.data?.flights, !legs.isEmpty {
                 refreshedLeg = legs.first { $0.faFlightId == inbound.faFlightId }

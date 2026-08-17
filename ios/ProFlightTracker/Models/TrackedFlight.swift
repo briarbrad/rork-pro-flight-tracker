@@ -34,8 +34,28 @@ nonisolated struct FlightSnapshot: Codable, Hashable, Sendable {
     var internationalSigmets: [InternationalSigmet]?
     var assessment: RiskAssessment?
     var brief: StoredBrief?
+    /// Server-computed live layer from /api/flight/live — the render source
+    /// for phase and predicted times on every refresh. The brief is
+    /// enrichment and loses to this wherever they disagree.
+    var live: StoredLive?
+    /// SOURCE-pull time of the last refresh (the envelope's `fetched_at`),
+    /// not HTTP-response receipt — every freshness caption renders from it.
     var lastRefreshed: Date?
     var refreshError: String?
+
+    /// The flight is finished (`refresh_after_seconds: null` from the live
+    /// endpoint) — nothing can change, so automatic refreshes stop.
+    var isFinal: Bool { live?.isFinal ?? false }
+
+    /// Server-driven staleness gate for AUTOMATIC refreshes (screen-open).
+    /// Falls back to 120 s until the first live pull supplies a threshold.
+    /// Never a poll timer — refreshes stay user- or navigation-initiated.
+    var autoRefreshDue: Bool {
+        if isFinal { return false }
+        guard let lastRefreshed else { return true }
+        let threshold = Double(live?.refreshAfterSeconds ?? 120)
+        return Date().timeIntervalSince(lastRefreshed) > threshold
+    }
 
     /// Codable subset of LightningEnvelope worth persisting.
     nonisolated struct LightningWrapper: Codable, Hashable, Sendable {

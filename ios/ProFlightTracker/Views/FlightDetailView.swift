@@ -19,7 +19,8 @@ struct FlightDetailView: View {
     /// Every time on this screen is shown in the zone of the airport it belongs
     /// to — departure facts in the origin's, arrival facts in the destination's.
     private var zones: FlightZones {
-        FlightZones.resolve(flight: leg, brief: snapshot?.brief?.timezones)
+        FlightZones.resolve(flight: leg,
+                            brief: snapshot?.live?.timezones ?? snapshot?.brief?.timezones)
     }
 
     /// Signals about the flight itself and its aircraft chain. Shown only
@@ -160,8 +161,10 @@ struct FlightDetailView: View {
             popup = .jargon(entry)
         }
         .task {
-            let stale = (snapshot?.lastRefreshed.map { Date().timeIntervalSince($0) > 120 }) ?? true
-            if stale {
+            // Staleness gate driven by the server's refresh_after_seconds
+            // (null = flight is final, never refetch). Not a poll — fires
+            // once per screen-open.
+            if snapshot?.autoRefreshDue ?? true {
                 await store.refresh(flight)
             }
         }
@@ -181,10 +184,10 @@ struct FlightDetailView: View {
                         .foregroundStyle(Theme.ink)
                 }
                 Spacer()
-                // The flight-level verdict comes exclusively from /api/brief.
-                if let brief = snapshot?.brief {
-                    BriefVerdictBadge(brief: brief)
-                }
+                // Brief verdict is authoritative while fresh; the live
+                // status_only verdict may escalate over it, and governs once
+                // the brief goes stale.
+                FlightVerdictBadge(brief: snapshot?.brief, live: snapshot?.live)
             }
 
             Divider().overlay(Theme.hairline)

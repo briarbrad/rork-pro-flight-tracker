@@ -93,6 +93,14 @@ nonisolated enum API {
         try await get("/api/flight/status", query: ["flight": flight, "date": date])
     }
 
+    /// Cheap main-refresh analysis: ONE AeroAPI query returning the same
+    /// phase/predicted_times/taxi/verdict shapes as the brief. `edct=cached`
+    /// re-attaches the last brief-discovered EDCT (45-min server cache) so
+    /// FAA-controlled times survive cheap refreshes between brief runs.
+    static func flightLive(flight: String, date: String?) async throws -> LiveEnvelope {
+        try await get("/api/flight/live", query: ["flight": flight, "date": date, "edct": "cached"])
+    }
+
     static func flightChain(flight: String, date: String?) async throws -> ChainEnvelope {
         try await get("/api/flight/chain", query: ["flight": flight, "date": date])
     }

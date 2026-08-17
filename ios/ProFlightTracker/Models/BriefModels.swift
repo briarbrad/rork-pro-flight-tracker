@@ -389,12 +389,15 @@ nonisolated struct BriefVerdict: Codable, Sendable {
     let confidence: String?
     let confidenceBasis: String?
     let drivers: [String]?
+    /// "status_only" on /api/flight/live verdicts — no weather, FAA
+    /// programs, or equipment chain were consulted at that price point.
+    let scope: String?
 
     enum CodingKeys: String, CodingKey {
         case departureRisk = "departure_risk"
         case confidence
         case confidenceBasis = "confidence_basis"
-        case drivers
+        case drivers, scope
     }
 
     var riskLevel: RiskLevel? {

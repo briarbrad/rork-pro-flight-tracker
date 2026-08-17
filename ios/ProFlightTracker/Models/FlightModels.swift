@@ -26,17 +26,20 @@ nonisolated struct AeroFlight: Codable, Hashable, Sendable, Identifiable {
     let destName: String?
     let destCity: String?
     let scheduledOut: String?
-    let estimatedOut: String?
-    let actualOut: String?
+    // Estimated/actual milestones are `var` so the live layer can fold its
+    // fresher server-computed times back into the last-known leg (see
+    // FlightPhaseDerivation.patchedLeg) — schedules never change client-side.
+    var estimatedOut: String?
+    var actualOut: String?
     let scheduledOff: String?
-    let estimatedOff: String?
-    let actualOff: String?
+    var estimatedOff: String?
+    var actualOff: String?
     let scheduledOn: String?
-    let estimatedOn: String?
-    let actualOn: String?
+    var estimatedOn: String?
+    var actualOn: String?
     let scheduledIn: String?
-    let estimatedIn: String?
-    let actualIn: String?
+    var estimatedIn: String?
+    var actualIn: String?
     let gateOrigin: String?
     let gateDestination: String?
     let terminalOrigin: String?
@@ -47,7 +50,7 @@ nonisolated struct AeroFlight: Codable, Hashable, Sendable, Identifiable {
     let progressPercent: Double?
     let blocked: Bool?
     let diverted: Bool?
-    let cancelled: Bool?
+    var cancelled: Bool?
 
     enum CodingKeys: String, CodingKey {
         case faFlightId = "fa_flight_id"

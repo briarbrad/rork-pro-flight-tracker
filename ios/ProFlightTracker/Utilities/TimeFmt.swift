@@ -102,11 +102,15 @@ nonisolated enum TimeFmt {
         return effective.timeIntervalSince(sched) / 60.0
     }
 
-    /// Today's date in the API's yyyy-MM-dd format (UTC, matching the server).
-    static func apiDate(_ date: Date = Date()) -> String {
+    /// The API's yyyy-MM-dd date key. The backend matches flights on their
+    /// ORIGIN-local date, so compute the key in the origin airport's zone
+    /// when known and the device's local zone otherwise. Never UTC — a 9 PM
+    /// ET add would otherwise look up tomorrow's flight.
+    static func apiDate(_ date: Date = Date(), zone: TimeZone? = nil) -> String {
         let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd"
-        formatter.timeZone = TimeZone(identifier: "UTC")
+        formatter.timeZone = zone ?? .current
         return formatter.string(from: date)
     }
 }

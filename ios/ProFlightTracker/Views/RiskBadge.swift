@@ -29,9 +29,62 @@ struct RiskBadge: View {
     }
 }
 
-/// The flight-level verdict pill — driven exclusively by the last /api/brief
-/// run. Neutral (gray) for too-early / low-confidence states so "nothing
-/// visible yet" never masquerades as "all clear".
+/// Flight-level verdict pill with the live/brief precedence rule encoded:
+/// the brief is authoritative for weather/program risk while fresh — the
+/// live status_only verdict (cancellations, diversions, slips, EDCTs) may
+/// only ESCALATE over it, never soften it. Once the brief goes stale, the
+/// live verdict governs. With no brief at all, only an elevated live verdict
+/// earns a pill — a status-only LOW is "nothing visible in status data",
+/// not "all clear", and must not wear a reassuring badge.
+struct FlightVerdictBadge: View {
+    let brief: StoredBrief?
+    let live: StoredLive?
+
+    var body: some View {
+        if let brief {
+            if let liveLevel = live?.riskLevel, overridesBrief(brief, liveLevel: liveLevel) {
+                livePill(liveLevel)
+            } else {
+                BriefVerdictBadge(brief: brief)
+            }
+        } else if let liveLevel = live?.riskLevel, liveLevel.rank > RiskLevel.low.rank {
+            livePill(liveLevel)
+        }
+    }
+
+    private func overridesBrief(_ brief: StoredBrief, liveLevel: RiskLevel) -> Bool {
+        let briefRank = brief.riskLevel?.rank ?? 0
+        // Fresh brief: live may only escalate over it.
+        guard brief.isStale else { return liveLevel.rank > briefRank }
+        // Stale brief: the live verdict governs whenever it differs.
+        return liveLevel.rank != briefRank
+    }
+
+    private func livePill(_ level: RiskLevel) -> some View {
+        VStack(alignment: .trailing, spacing: 2) {
+            HStack(spacing: 5) {
+                LucideIcon(name: level.lucideIcon, size: 12, fallback: "shield")
+                Text(level.label)
+                    .font(.caption.weight(.bold))
+            }
+            .foregroundStyle(level.color)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(level.color.opacity(0.13))
+            .clipShape(.capsule)
+
+            Text("Live status")
+                .font(.caption2.weight(.bold))
+                .textCase(.uppercase)
+                .kerning(0.6)
+                .foregroundStyle(Theme.inkSecondary)
+        }
+    }
+}
+
+/// The brief-driven verdict pill. Neutral (gray) for too-early /
+/// low-confidence states so "nothing visible yet" never masquerades as
+/// "all clear".
 struct BriefVerdictBadge: View {
     let brief: StoredBrief
 

@@ -1,61 +1,85 @@
 import SwiftUI
 
 /// The flight's current lifecycle state, rendered as the top card of the
-/// brief once the aircraft is out of the gate. The headline is always the
-/// NEXT event — "Takeoff 10:28 PM EDT, in 88 min" — never the schedule: a
-/// flight 100 minutes into a taxi hold doesn't care that pushback was early.
+/// flight screen once the aircraft is out of the gate. The headline is
+/// always the NEXT event — "Takeoff 10:28 PM EDT, in 88 min" — never the
+/// schedule: a flight 100 minutes into a taxi hold doesn't care that
+/// pushback was early. Driven by the LIVE LAYER on every refresh; the
+/// stored brief only feeds it as a fallback before the first live pull.
 struct PhaseCard: View {
-    let brief: StoredBrief
+    let phase: BriefPhase
+    let taxi: BriefTaxi?
+    let position: BriefPosition?
+    /// SOURCE-pull time of the data behind this card — countdowns and
+    /// elapsed-in-phase advance from this anchor with wall-clock time.
+    let asOf: Date
     let zones: FlightZones
-    /// Re-run affordance for the stale treatment — briefs stay user-initiated.
-    var onRerun: (() -> Void)? = nil
-
-    private var phase: BriefPhase? { brief.phase }
+    /// Predicted-times entry behind `phase.next_event`, for the time fallback
+    /// when the server didn't send a resolved local display.
+    var nextEventEntry: BriefPredictedTime? = nil
+    var isStale: Bool = false
+    /// Footer text + affordance when stale — "refresh" for the live layer,
+    /// "re-run the brief" for the brief fallback. Always user-initiated.
+    var staleMessage: String? = nil
+    var onStaleAction: (() -> Void)? = nil
 
     var body: some View {
-        if let phase {
-            VStack(alignment: .leading, spacing: 12) {
-                phaseHeader(phase)
+        VStack(alignment: .leading, spacing: 12) {
+            phaseHeader(phase)
 
-                if phase.isCancelled {
-                    cancelledRow(phase)
-                } else if !phase.isOver {
-                    nextEventBlock(phase)
-                }
-
-                // Taxi assessment — whether this wait is abnormal for THIS
-                // airport. Summary is server-written, rendered verbatim.
-                if let taxi = brief.taxi, taxi.isApplicable {
-                    taxiBlock(taxi)
-                }
-
-                // Live position — only when something is actually reported.
-                // Patchy surface ADS-B is missing data, not a problem with
-                // the flight, so absence renders as nothing.
-                if let position = brief.position, position.isAvailable {
-                    positionRow(position)
-                }
-
-                // Same stale treatment as the verdict card: this card
-                // described the flight as of brief-run time.
-                if brief.isStale {
-                    staleFooter
-                }
+            if phase.isCancelled {
+                cancelledRow(phase)
+            } else if !phase.isOver {
+                nextEventBlock(phase)
             }
-            .opacity(brief.isStale ? 0.75 : 1)
-            .cardStyle()
+
+            // Taxi assessment — whether this wait is abnormal for THIS
+            // airport. Summary is server-written, rendered verbatim.
+            if let taxi, taxi.isApplicable {
+                taxiBlock(taxi)
+            }
+
+            // Live position — only when something is actually reported.
+            // Patchy surface ADS-B is missing data, not a problem with
+            // the flight, so absence renders as nothing.
+            if let position, position.isAvailable {
+                positionRow(position)
+            }
+
+            // Stale treatment: this card described the flight as of the
+            // source pull behind it.
+            if isStale, let staleMessage {
+                staleFooter(staleMessage)
+            }
         }
+        .opacity(isStale ? 0.75 : 1)
+        .cardStyle()
     }
 
-    private var staleFooter: some View {
+    /// Minutes to the next event as of NOW, advanced from the value at
+    /// source-pull time. Negative = the predicted time slipped past while
+    /// this data sat on screen.
+    private var minutesToNextEventNow: Int? {
+        guard let minutes = phase.minutesToNextEvent else { return nil }
+        return minutes - Int(Date().timeIntervalSince(asOf) / 60)
+    }
+
+    /// Minutes in the current phase as of NOW — the server's value is frozen
+    /// at pull time, so rendering it verbatim would read "2 min" forever.
+    private var elapsedInPhaseMinNow: Int? {
+        guard let elapsed = phase.elapsedInPhaseMin else { return nil }
+        return elapsed + Int(Date().timeIntervalSince(asOf) / 60)
+    }
+
+    private func staleFooter(_ message: String) -> some View {
         Button {
             Haptics.tap()
-            onRerun?()
+            onStaleAction?()
         } label: {
             HStack(spacing: 6) {
                 LucideIcon(name: "history", size: 11, fallback: "clock")
                     .foregroundStyle(Theme.gold)
-                Text("As of \(TimeFmt.relative(brief.runAt)) — re-run the brief for the live picture.")
+                Text(message)
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -86,9 +110,9 @@ struct PhaseCard: View {
             Spacer()
 
             // Advances with wall-clock time — the server's value is frozen at
-            // brief-run time and would read "In phase 2 min" forever. Reads as
+            // pull time and would read "In phase 2 min" forever. Reads as
             // a continuation of the phase pill: "In the air · started 2 min ago".
-            if let elapsed = brief.elapsedInPhaseMinNow, phase.isEnRoute {
+            if let elapsed = elapsedInPhaseMinNow, phase.isEnRoute {
                 Text("started \(durationText(elapsed)) ago")
                     .font(.caption.weight(.semibold))
                     .monospacedDigit()
@@ -227,7 +251,7 @@ struct PhaseCard: View {
     /// predicted-times entry rendered in the client's own airport zone.
     private func nextEventTimeText(_ phase: BriefPhase) -> String {
         if let display = phase.nextEventLocalDisplay, !display.isEmpty { return display }
-        if let entry = brief.nextEventPredictedTime {
+        if let entry = nextEventEntry {
             let zone = phase.nextEvent == "gate_arrival" ? zones.destination : zones.origin
             return entry.displayTime(fallbackZone: zone)
         }
@@ -238,7 +262,7 @@ struct PhaseCard: View {
     /// name the last predicted time instead of the alarming-sounding
     /// "past predicted time" (the overdue flag has its own explicit row).
     private func countdownText(_ phase: BriefPhase) -> String? {
-        guard let minutes = brief.minutesToNextEventNow else { return nil }
+        guard let minutes = minutesToNextEventNow else { return nil }
         if minutes < 0 {
             if phase.isOverdue { return nil }
             let last = nextEventTimeText(phase)

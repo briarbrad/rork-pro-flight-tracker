@@ -88,6 +88,37 @@ nonisolated enum FlightPhaseDerivation {
             delayVsScheduleMin: nil)
     }
 
+    /// Folds the live envelope's server-computed times back into the
+    /// last-known leg so the header and the derived-phase guard never lag the
+    /// live layer: ACTUAL entries become actual_* milestones, live
+    /// predictions refresh the estimated_* slots, and a CANCELLED phase sets
+    /// the cancelled flag. (TAXI_IN's landing milestone isn't in
+    /// predicted_times — harmless, because the server phase wins whenever a
+    /// live layer is present; the derived guard only covers its absence.)
+    static func patchedLeg(_ leg: AeroFlight, with envelope: LiveEnvelope) -> AeroFlight {
+        var updated = leg
+        if envelope.phase?.code == DerivedFlightPhase.cancelled.rawValue {
+            updated.cancelled = true
+        }
+        apply(envelope.predictedTimes?.gateDeparture,
+              actual: &updated.actualOut, estimated: &updated.estimatedOut)
+        apply(envelope.predictedTimes?.takeoff,
+              actual: &updated.actualOff, estimated: &updated.estimatedOff)
+        apply(envelope.predictedTimes?.gateArrival,
+              actual: &updated.actualIn, estimated: &updated.estimatedIn)
+        return updated
+    }
+
+    private static func apply(_ entry: BriefPredictedTime?,
+                              actual: inout String?, estimated: inout String?) {
+        guard let entry, let time = entry.time, !time.isEmpty else { return }
+        if entry.isActual {
+            actual = time
+        } else if !entry.isScheduledOnly, !entry.isUnknown {
+            estimated = time
+        }
+    }
+
     /// Which predicted_times key comes next for a derived phase — mirrors the
     /// backend's own next_event mapping so the existing lookup keeps working.
     private static func nextEventKey(for phase: DerivedFlightPhase) -> String? {

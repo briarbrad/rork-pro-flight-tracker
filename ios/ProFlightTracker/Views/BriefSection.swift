@@ -15,37 +15,37 @@ struct BriefSection: View {
     @State private var showExcluded: Bool = false
 
     private var brief: StoredBrief? { store.snapshots[flight.id]?.brief }
+    /// The server-computed live layer from the main refresh — the render
+    /// source for phase and predicted times. The brief is enrichment only
+    /// and loses to this wherever they disagree.
+    private var live: StoredLive? { store.snapshots[flight.id]?.live }
     /// Origin/destination zones for the client-side fallback when the backend's
     /// own zone lookup comes back empty.
     private var zones: FlightZones {
-        FlightZones.resolve(flight: store.snapshots[flight.id]?.flight, brief: brief?.timezones)
+        FlightZones.resolve(flight: store.snapshots[flight.id]?.flight,
+                            brief: live?.timezones ?? brief?.timezones)
     }
     private var isRunning: Bool { store.briefing.contains(flight.id) }
     private var narrativeWriting: Bool { store.narrativePending.contains(flight.id) }
+    /// The freshest phase code on file — live layer first, brief fallback.
+    private var activePhaseCode: String? { live?.phase?.code ?? brief?.phase?.code }
 
     var body: some View {
         VStack(spacing: 14) {
+            // Phase is the primary state — read before horizon. Once the
+            // aircraft is out of the gate (or the flight is over), the
+            // screen is organised around "what happens next", not the
+            // schedule.
+            phaseCardView
+            // Headline: server-predicted times — when does this flight GO.
+            predictedTimesView
+            // FAA-controlled wheels-up slot: the top fact when present. The
+            // live layer re-attaches cached EDCTs, so it wins here too.
+            if let edct = live?.predictedTimes?.edct ?? brief?.predictedTimes?.edct,
+               edct.edct != nil {
+                EdctBanner(edct: edct, originZone: zones.origin)
+            }
             if let brief {
-                // Phase is the primary state — read before horizon. Once the
-                // aircraft is out of the gate (or the flight is over), the
-                // screen is organised around "what happens next", not the
-                // schedule.
-                if let phase = brief.phase, phase.code != "PRE_GATE" {
-                    PhaseCard(brief: brief, zones: zones) {
-                        Task { await runBrief() }
-                    }
-                }
-                // Headline: server-predicted times — when does this flight GO.
-                if let times = brief.predictedTimes {
-                    PredictedTimesCard(times: times, timezones: brief.timezones, zones: zones,
-                                       isStale: brief.isStale, runAt: brief.runAt) {
-                        Task { await runBrief() }
-                    }
-                }
-                // FAA-controlled wheels-up slot: the top fact when present.
-                if let edct = brief.predictedTimes?.edct, edct.edct != nil {
-                    EdctBanner(edct: edct, originZone: zones.origin)
-                }
                 verdictCard(brief)
             } else {
                 VStack(alignment: .leading, spacing: 12) {
@@ -60,6 +60,61 @@ struct BriefSection: View {
                     }
                 }
                 .cardStyle()
+            }
+        }
+    }
+
+    /// Live layer wins on every refresh; the brief's phase only renders
+    /// before the first live pull (fallback path).
+    @ViewBuilder
+    private var phaseCardView: some View {
+        if let live, let phase = live.phase, phase.code != "PRE_GATE" {
+            PhaseCard(phase: phase,
+                      taxi: live.taxi,
+                      position: freshBriefPosition(matching: phase),
+                      asOf: live.fetchedAt,
+                      zones: zones,
+                      nextEventEntry: live.nextEventPredictedTime,
+                      isStale: live.isStale,
+                      staleMessage: "Live status as of \(TimeFmt.relative(live.fetchedAt)) — refresh for the current picture.") {
+                Task { await store.refresh(flight) }
+            }
+        } else if live == nil, let brief, let phase = brief.phase, phase.code != "PRE_GATE" {
+            PhaseCard(phase: phase,
+                      taxi: brief.taxi,
+                      position: brief.position,
+                      asOf: brief.runAt,
+                      zones: zones,
+                      nextEventEntry: brief.nextEventPredictedTime,
+                      isStale: brief.isStale,
+                      staleMessage: "As of \(TimeFmt.relative(brief.runAt)) — re-run the brief for the live picture.") {
+                Task { await runBrief() }
+            }
+        }
+    }
+
+    /// The live layer carries no position block (one query, no ADS-B) — the
+    /// brief's position is enrichment on it, but only while the brief is
+    /// fresh and still describes the same phase.
+    private func freshBriefPosition(matching phase: BriefPhase) -> BriefPosition? {
+        guard let brief, !brief.isStale, brief.phase?.code == phase.code else { return nil }
+        return brief.position
+    }
+
+    @ViewBuilder
+    private var predictedTimesView: some View {
+        if let live, let times = live.predictedTimes {
+            PredictedTimesCard(times: times,
+                               timezones: live.timezones ?? brief?.timezones,
+                               zones: zones,
+                               isStale: live.isStale, runAt: live.fetchedAt,
+                               staleVerb: "refresh") {
+                Task { await store.refresh(flight) }
+            }
+        } else if let brief, let times = brief.predictedTimes {
+            PredictedTimesCard(times: times, timezones: brief.timezones, zones: zones,
+                               isStale: brief.isStale, runAt: brief.runAt) {
+                Task { await runBrief() }
             }
         }
     }
@@ -268,7 +323,8 @@ struct BriefSection: View {
     private func horizonRow(_ brief: StoredBrief) -> some View {
         // Post-pushback the phase card is the state — a horizon row saying
         // "departed" next to a live taxi hold is exactly the hole this fixes.
-        if let phase = brief.phase, phase.code != "PRE_GATE" {
+        // Gated on the FRESHEST phase (live layer first), not just the brief's.
+        if let code = activePhaseCode, code != "PRE_GATE" {
             EmptyView()
         } else {
             HStack(spacing: 6) {

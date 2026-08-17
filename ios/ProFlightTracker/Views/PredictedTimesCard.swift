@@ -10,10 +10,13 @@ struct PredictedTimesCard: View {
     let times: BriefPredictedTimes
     var timezones: BriefTimezones? = nil
     var zones: FlightZones = .unknown
-    /// Stale-brief treatment, mirroring the verdict card: dimmed content,
-    /// "as of" caption, and a re-run affordance. Never auto-refreshes.
+    /// Stale treatment, mirroring the verdict card: dimmed content, "as of"
+    /// caption, and a user-initiated affordance. Never auto-refreshes.
     var isStale: Bool = false
     var runAt: Date? = nil
+    /// "refresh" when the live layer drives this card, "re-run the brief"
+    /// when the brief fallback does.
+    var staleVerb: String = "re-run the brief"
     var onRerun: (() -> Void)? = nil
 
     @State private var expandedSlot: PredictedSlot?
@@ -65,7 +68,7 @@ struct PredictedTimesCard: View {
             HStack(spacing: 6) {
                 LucideIcon(name: "history", size: 11, fallback: "clock")
                     .foregroundStyle(Theme.gold)
-                Text("As of \(TimeFmt.relative(runAt)) — re-run the brief for the live picture.")
+                Text("As of \(TimeFmt.relative(runAt)) — \(staleVerb) for the live picture.")
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
             }
