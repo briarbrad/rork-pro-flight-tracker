@@ -77,7 +77,7 @@ struct PredictedTimesCard: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(10)
             .background(Theme.gold.opacity(0.1))
-            .clipShape(.rect(cornerRadius: 10))
+            .clipShape(.rect(cornerRadius: Theme.Radius.well))
         }
     }
 
@@ -169,16 +169,10 @@ struct PredictedTimesCard: View {
                 .foregroundStyle(Theme.inkSecondary)
         } else if entry?.isControlled == true {
             VStack(spacing: 2) {
-                Text(entry?.displayTime(fallbackZone: zone) ?? "—")
-                    .font(.subheadline.weight(.bold))
-                    .monospacedDigit()
-                    .minimumScaleFactor(0.7)
-                    .lineLimit(1)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(Theme.tealDeep)
-                    .clipShape(.capsule)
+                // FAA-authoritative fact — the ONLY place the solid style is
+                // allowed besides the EDCT banner.
+                StatusChip(text: entry?.displayTime(fallbackZone: zone) ?? "—",
+                           tone: .info, size: .mini, style: .solid)
                 Text("FAA slot")
                     .font(.caption2.weight(.bold))
                     .textCase(.uppercase)
@@ -203,14 +197,12 @@ struct PredictedTimesCard: View {
         if let delay = entry?.delayVsScheduleMin, entry?.isUnknown != true,
            !(entry?.isActual == true && delay <= 0) {
             let late = delay > 0
-            Text(late ? "+\(delay) min" : "on time")
-                .font(.caption2.weight(.bold))
-                .monospacedDigit()
-                .foregroundStyle(late ? Theme.goldText : Theme.greenText)
-                .padding(.horizontal, 7)
-                .padding(.vertical, 2)
-                .background((late ? Theme.gold : Theme.green).opacity(0.12))
-                .clipShape(.capsule)
+            // Late deltas escalate on the shared thresholds — a +50 min slip
+            // reads red here for the same reason it reads red everywhere.
+            let tone: ChipTone = late
+                ? (SlipSeverity.of(minutes: Double(delay)) == .alert ? .alert : .watch)
+                : .ok
+            StatusChip(text: late ? "+\(delay) min" : "on time", tone: tone, size: .mini)
         }
     }
 
@@ -224,7 +216,7 @@ struct PredictedTimesCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
         .background(Theme.canvas)
-        .clipShape(.rect(cornerRadius: 10))
+        .clipShape(.rect(cornerRadius: Theme.Radius.well))
         .transition(.opacity.combined(with: .move(edge: .top)))
     }
 }
@@ -272,8 +264,8 @@ struct EdctBanner: View {
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Theme.tealDeep)
-        .clipShape(.rect(cornerRadius: 18))
-        .shadow(color: Theme.tealDeep.opacity(0.3), radius: 8, x: 0, y: 3)
+        .clipShape(.rect(cornerRadius: Theme.Radius.card))
+        .cardShadow()
     }
 
     private var sublineText: String {
@@ -371,15 +363,9 @@ struct EffectRow: View {
                                  font: .caption.weight(.semibold),
                                  color: Theme.ink)
                     if effect.severityCode != "INFO" {
-                        Text(effect.severityCode)
-                            .font(.caption2.weight(.bold))
-                            .textCase(.uppercase)
-                            .kerning(0.6)
-                            .foregroundStyle(Theme.textVariant(of: color))
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 2)
-                            .background(color.opacity(0.12))
-                            .clipShape(.capsule)
+                        StatusChip(text: effect.severityCode,
+                                   tone: effect.severityCode == "ACTION" ? .alert : .watch,
+                                   size: .mini, uppercased: true)
                     }
                 }
                 if let body = effect.effect {

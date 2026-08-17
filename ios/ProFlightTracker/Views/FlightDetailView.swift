@@ -317,12 +317,8 @@ struct FlightDetailView: View {
     }
 
     private func slipColor(scheduled: String?, effective: String?) -> Color {
-        guard let sched = TimeFmt.parseISO(scheduled),
-              let eff = TimeFmt.parseISO(effective) else { return Theme.ink }
-        let slip = eff.timeIntervalSince(sched) / 60
-        if slip >= 45 { return Theme.red }
-        if slip >= 15 { return Theme.goldText }
-        return Theme.ink
+        SlipSeverity.of(scheduled: scheduled, effective: effective)
+            .textColor(default: Theme.ink)
     }
 
     private func errorBanner(_ message: String) -> some View {

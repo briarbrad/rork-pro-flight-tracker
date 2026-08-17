@@ -101,16 +101,19 @@ nonisolated enum RiskEngine {
         }
 
         if let slip = flight.departureSlipMinutes {
-            if slip >= 45 {
+            switch SlipSeverity.of(minutes: slip) {
+            case .alert:
                 signals.append(RiskSignal(
                     key: "flight.dep-slip-major", title: "Departure slipping badly",
                     detail: "Departure is running \(Int(slip)) min behind schedule.",
                     level: .high, icon: "clock-alert"))
-            } else if slip >= 15 {
+            case .watch:
                 signals.append(RiskSignal(
                     key: "flight.dep-slip", title: "Departure slipping",
                     detail: "Departure is running \(Int(slip)) min behind schedule.",
                     level: .moderate, icon: "clock"))
+            case .none:
+                break
             }
         }
 
@@ -190,7 +193,7 @@ nonisolated enum RiskEngine {
             } else if let slip = TimeFmt.slipMinutes(scheduled: inbound.scheduledIn,
                                                      actual: inbound.actualIn,
                                                      estimated: inbound.estimatedIn),
-                      slip >= 20, inbound.actualIn == nil,
+                      SlipSeverity.of(minutes: slip).isSlipped, inbound.actualIn == nil,
                       !turnAbsorbsLateness(chain.turnAnalysis) {
                 signals.append(RiskSignal(
                     key: "chain.inbound-late", title: "Inbound aircraft running late",

@@ -84,8 +84,8 @@ struct AirportsView: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .background(Theme.card)
-        .clipShape(.rect(cornerRadius: 16))
-        .shadow(color: Theme.ink.opacity(0.05), radius: 8, y: 3)
+        .clipShape(.rect(cornerRadius: Theme.Radius.card))
+        .cardShadow()
     }
 
     private var recentsRow: some View {
@@ -96,16 +96,7 @@ struct AirportsView: View {
                         query = icao
                         lookup(icao)
                     } label: {
-                        HStack(spacing: 4) {
-                            LucideIcon(name: "history", size: 11, fallback: "clock")
-                            Text(icao)
-                                .font(.caption.weight(.semibold))
-                        }
-                        .foregroundStyle(Theme.teal)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 7)
-                        .background(Theme.teal.opacity(0.1))
-                        .clipShape(.capsule)
+                        StatusChip(text: icao, icon: "history", tone: .info)
                     }
                 }
             }
@@ -230,7 +221,7 @@ struct AirportsView: View {
         }
         .padding(12)
         .background(Theme.canvas)
-        .clipShape(.rect(cornerRadius: 12))
+        .clipShape(.rect(cornerRadius: Theme.Radius.well))
     }
 
     private func periodSummary(_ period: TafPeriod) -> String {

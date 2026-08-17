@@ -26,6 +26,13 @@ enum Theme {
     static let ink = Color(red: 0.122, green: 0.161, blue: 0.2)
     static let inkSecondary = Color(red: 0.373, green: 0.42, blue: 0.463)
     static let hairline = Color(red: 0.882, green: 0.871, blue: 0.843)
+
+    /// Canonical corner radii: inner wells 12, cards 16, modals 24.
+    enum Radius {
+        static let well: CGFloat = 12
+        static let card: CGFloat = 16
+        static let modal: CGFloat = 24
+    }
 }
 
 /// Reusable card container with soft shadow and rounded corners.
@@ -36,14 +43,19 @@ struct CardBackground: ViewModifier {
         content
             .padding(padding)
             .background(Theme.card)
-            .clipShape(.rect(cornerRadius: 18))
-            .shadow(color: Theme.ink.opacity(0.05), radius: 8, x: 0, y: 3)
+            .clipShape(.rect(cornerRadius: Theme.Radius.card))
+            .cardShadow()
     }
 }
 
 extension View {
     func cardStyle(padding: CGFloat = 16) -> some View {
         modifier(CardBackground(padding: padding))
+    }
+
+    /// The one card shadow used across the app.
+    func cardShadow() -> some View {
+        shadow(color: Theme.ink.opacity(0.05), radius: 8, x: 0, y: 3)
     }
 }
 

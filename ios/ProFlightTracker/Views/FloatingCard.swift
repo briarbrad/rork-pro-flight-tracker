@@ -54,7 +54,7 @@ struct FloatingCardCover<Content: View>: View {
             .frame(maxHeight: 460)
         }
         .background(Theme.card)
-        .clipShape(.rect(cornerRadius: 24))
+        .clipShape(.rect(cornerRadius: Theme.Radius.modal))
         .shadow(color: .black.opacity(0.22), radius: 26, y: 10)
         .gesture(dragGesture)
     }

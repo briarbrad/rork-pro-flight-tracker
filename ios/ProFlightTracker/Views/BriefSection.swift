@@ -171,7 +171,7 @@ struct BriefSection: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 11)
                 .background(Theme.teal)
-                .clipShape(.rect(cornerRadius: 12))
+                .clipShape(.rect(cornerRadius: Theme.Radius.well))
             }
             Text("Uses 2–4 paid flight-data queries, so it only runs when you ask.")
                 .font(.caption2)
@@ -206,7 +206,7 @@ struct BriefSection: View {
         .foregroundStyle(Theme.red)
         .padding(10)
         .background(Theme.red.opacity(0.08))
-        .clipShape(.rect(cornerRadius: 10))
+        .clipShape(.rect(cornerRadius: Theme.Radius.well))
     }
 
     // MARK: - Verdict (deterministic, rendered directly from the brief)
@@ -263,7 +263,7 @@ struct BriefSection: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(10)
                     .background(Theme.gold.opacity(0.1))
-                    .clipShape(.rect(cornerRadius: 10))
+                    .clipShape(.rect(cornerRadius: Theme.Radius.well))
                 }
                 .disabled(isRunning)
             } else {
@@ -284,7 +284,7 @@ struct BriefSection: View {
         // "nothing visibly wrong yet, too early to tell." Those states must
         // not share the reassuring green treatment.
         let neutral = brief.isNeutral
-        let badgeColor: Color = neutral ? Theme.inkSecondary : (brief.riskLevel?.color ?? Theme.inkSecondary)
+        let badgeTone: ChipTone = neutral ? .neutral : (brief.riskLevel.map(ChipTone.from) ?? .neutral)
         let badgeIcon: String = neutral ? "hourglass" : (brief.riskLevel?.lucideIcon ?? "shield-question-mark")
         let badgeText: String = {
             if brief.isTooEarly { return "Too early to assess" }
@@ -293,16 +293,7 @@ struct BriefSection: View {
         }()
 
         return HStack(spacing: 10) {
-            HStack(spacing: 6) {
-                LucideIcon(name: badgeIcon, size: 14, fallback: "shield")
-                Text(badgeText)
-                    .font(.subheadline.weight(.bold))
-            }
-            .foregroundStyle(badgeColor)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
-            .background(badgeColor.opacity(0.12))
-            .clipShape(.capsule)
+            StatusChip(text: badgeText, icon: badgeIcon, tone: badgeTone)
 
             Spacer()
 
@@ -336,13 +327,7 @@ struct BriefSection: View {
                         .foregroundStyle(Theme.ink)
                 }
                 if let band = brief.band {
-                    Text(bandLabel(band))
-                        .font(.caption2.weight(.bold))
-                        .foregroundStyle(Theme.teal)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(Theme.teal.opacity(0.1))
-                        .clipShape(.capsule)
+                    StatusChip(text: bandLabel(band), tone: .info, size: .mini)
                 }
                 Spacer()
             }
@@ -367,7 +352,7 @@ struct BriefSection: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
         .background(Theme.canvas)
-        .clipShape(.rect(cornerRadius: 12))
+        .clipShape(.rect(cornerRadius: Theme.Radius.well))
     }
 
     private func branchBlock(_ brief: StoredBrief, label: String) -> some View {
@@ -379,13 +364,7 @@ struct BriefSection: View {
                     .font(.caption.weight(.bold))
                     .foregroundStyle(Theme.ink)
                 if let code = brief.branch, code.uppercased() != "UNDETERMINED" {
-                    Text(code)
-                        .font(.caption2.weight(.heavy))
-                        .foregroundStyle(Theme.teal)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Theme.teal.opacity(0.12))
-                        .clipShape(.capsule)
+                    StatusChip(text: code, tone: .info, size: .mini, uppercased: true)
                 }
             }
             GlossaryText(text: label, font: .caption, color: Theme.inkSecondary)
@@ -396,7 +375,7 @@ struct BriefSection: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
         .background(Theme.canvas)
-        .clipShape(.rect(cornerRadius: 12))
+        .clipShape(.rect(cornerRadius: Theme.Radius.well))
     }
 
     private func excludedBlock(_ excluded: [String: String]) -> some View {

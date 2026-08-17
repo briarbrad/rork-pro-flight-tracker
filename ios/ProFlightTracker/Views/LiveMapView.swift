@@ -111,7 +111,7 @@ struct LiveMapView: View {
         .padding(14)
         .frame(maxWidth: .infinity)
         .background(.regularMaterial)
-        .clipShape(.rect(cornerRadius: 18))
+        .clipShape(.rect(cornerRadius: Theme.Radius.card))
     }
 
     private func stat(icon: String, label: String, value: String) -> some View {

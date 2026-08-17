@@ -47,20 +47,13 @@ struct EnrouteHazardsSection: View {
             HStack(spacing: 8) {
                 LucideIcon(name: tcf.isQuiet ? "sun" : "cloud-lightning", size: 15,
                            fallback: tcf.isQuiet ? "sun.max" : "cloud.bolt")
-                    .foregroundStyle(tcf.isQuiet ? Theme.green : levelColor(tcf.level))
+                    .foregroundStyle(levelTone(tcf).color)
                 GlossaryText(text: "TCF thunderstorm forecast",
                              font: .caption.weight(.semibold),
                              color: Theme.ink)
                 Spacer()
-                Text(tcf.isQuiet ? "CLEAR" : tcf.level)
-                    .font(.caption2.weight(.bold))
-                    .textCase(.uppercase)
-                    .kerning(0.6)
-                    .foregroundStyle(Theme.textVariant(of: tcf.isQuiet ? Theme.green : levelColor(tcf.level)))
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 3)
-                    .background((tcf.isQuiet ? Theme.green : levelColor(tcf.level)).opacity(0.13))
-                    .clipShape(.capsule)
+                StatusChip(text: tcf.isQuiet ? "Clear" : tcf.level,
+                           tone: levelTone(tcf), size: .mini, uppercased: true)
             }
 
             Text(convectiveHeadline(tcf))
@@ -71,13 +64,7 @@ struct EnrouteHazardsSection: View {
             if !tcf.isQuiet {
                 HStack(spacing: 6) {
                     ForEach(placementChips(tcf), id: \.self) { chip in
-                        Text(chip)
-                            .font(.caption2.weight(.medium))
-                            .foregroundStyle(Theme.teal)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Theme.teal.opacity(0.1))
-                            .clipShape(.capsule)
+                        StatusChip(text: chip, tone: .info, size: .mini)
                     }
                     Spacer(minLength: 0)
                 }
@@ -108,11 +95,12 @@ struct EnrouteHazardsSection: View {
         return chips
     }
 
-    private func levelColor(_ level: String) -> Color {
-        switch level {
-        case "MODERATE": return Theme.gold
-        case "HIGH", "SEVERE": return Theme.red
-        default: return Theme.teal
+    private func levelTone(_ tcf: TcfEnvelope) -> ChipTone {
+        guard !tcf.isQuiet else { return .ok }
+        switch tcf.level {
+        case "MODERATE": return .watch
+        case "HIGH", "SEVERE": return .alert
+        default: return .info
         }
     }
 

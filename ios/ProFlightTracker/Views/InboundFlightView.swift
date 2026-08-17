@@ -172,25 +172,12 @@ struct InboundFlightView: View {
     }
 
     private func slipColor(scheduled: String?, effective: String?) -> Color {
-        guard let sched = TimeFmt.parseISO(scheduled),
-              let eff = TimeFmt.parseISO(effective) else { return Theme.ink }
-        let slip = eff.timeIntervalSince(sched) / 60
-        if slip >= 45 { return Theme.red }
-        if slip >= 15 { return Theme.goldText }
-        return Theme.ink
+        SlipSeverity.of(scheduled: scheduled, effective: effective)
+            .textColor(default: Theme.ink)
     }
 
     private func chip(icon: String, text: String) -> some View {
-        HStack(spacing: 4) {
-            LucideIcon(name: icon, size: 11, fallback: "circle")
-            Text(text)
-                .font(.caption2.weight(.medium))
-        }
-        .foregroundStyle(Theme.inkSecondary)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(Theme.inkSecondary.opacity(0.08))
-        .clipShape(.capsule)
+        StatusChip(text: text, icon: icon, tone: .neutral, size: .mini)
     }
 
     // MARK: - Watchlist button
@@ -223,7 +210,7 @@ struct InboundFlightView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 13)
                     .background(Theme.teal)
-                    .clipShape(.rect(cornerRadius: 14))
+                    .clipShape(.rect(cornerRadius: Theme.Radius.well))
                 }
                 .disabled(isAdding || flight.ident == nil)
 

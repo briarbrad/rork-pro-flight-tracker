@@ -103,7 +103,7 @@ private struct WindowBlock: View {
                         .padding(10)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(Theme.canvas)
-                        .clipShape(.rect(cornerRadius: 10))
+                        .clipShape(.rect(cornerRadius: Theme.Radius.well))
                     }
                 }
             } else {

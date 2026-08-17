@@ -3,29 +3,16 @@ import SwiftUI
 /// Pill-shaped risk indicator that subtly animates when severity changes.
 struct RiskBadge: View {
     let level: RiskLevel
-    var compact: Bool = false
 
     @State private var pulse: Bool = false
 
     var body: some View {
-        HStack(spacing: 5) {
-            LucideIcon(name: level.lucideIcon, size: compact ? 12 : 14,
-                       fallback: "shield")
-            if !compact {
-                Text(level.label)
-                    .font(.caption.weight(.semibold))
+        StatusChip(text: level.label, icon: level.lucideIcon, tone: .from(level))
+            .scaleEffect(pulse ? 1.12 : 1.0)
+            .onChange(of: level) { _, _ in
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.5)) { pulse = true }
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.7).delay(0.15)) { pulse = false }
             }
-        }
-        .foregroundStyle(level.color)
-        .padding(.horizontal, compact ? 8 : 10)
-        .padding(.vertical, compact ? 4 : 6)
-        .background(level.color.opacity(0.14))
-        .clipShape(.capsule)
-        .scaleEffect(pulse ? 1.12 : 1.0)
-        .onChange(of: level) { _, _ in
-            withAnimation(.spring(response: 0.25, dampingFraction: 0.5)) { pulse = true }
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.7).delay(0.15)) { pulse = false }
-        }
     }
 }
 
@@ -62,16 +49,7 @@ struct FlightVerdictBadge: View {
 
     private func livePill(_ level: RiskLevel) -> some View {
         VStack(alignment: .trailing, spacing: 2) {
-            HStack(spacing: 5) {
-                LucideIcon(name: level.lucideIcon, size: 12, fallback: "shield")
-                Text(level.label)
-                    .font(.caption.weight(.bold))
-            }
-            .foregroundStyle(level.color)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .background(level.color.opacity(0.13))
-            .clipShape(.capsule)
+            StatusChip(text: level.label, icon: level.lucideIcon, tone: .from(level))
 
             Text("Live status")
                 .font(.caption2.weight(.bold))
@@ -89,7 +67,9 @@ struct BriefVerdictBadge: View {
     let brief: StoredBrief
 
     var body: some View {
-        let color: Color = brief.isNeutral ? Theme.inkSecondary : (brief.riskLevel?.color ?? Theme.inkSecondary)
+        let tone: ChipTone = brief.isNeutral
+            ? .neutral
+            : (brief.riskLevel.map(ChipTone.from) ?? .neutral)
         let icon: String = brief.isNeutral ? "hourglass" : (brief.riskLevel?.lucideIcon ?? "shield")
         let text: String = {
             if brief.isTooEarly { return "Too early" }
@@ -98,16 +78,7 @@ struct BriefVerdictBadge: View {
         }()
 
         VStack(alignment: .trailing, spacing: 2) {
-            HStack(spacing: 5) {
-                LucideIcon(name: icon, size: 12, fallback: "shield")
-                Text(text)
-                    .font(.caption.weight(.bold))
-            }
-            .foregroundStyle(color)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .background(color.opacity(0.13))
-            .clipShape(.capsule)
+            StatusChip(text: text, icon: icon, tone: tone)
 
             if let confidence = brief.confidence {
                 Text("\(confidence.capitalized) confidence")

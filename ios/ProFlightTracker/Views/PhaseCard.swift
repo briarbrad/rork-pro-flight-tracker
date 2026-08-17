@@ -88,7 +88,7 @@ struct PhaseCard: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(10)
             .background(Theme.gold.opacity(0.1))
-            .clipShape(.rect(cornerRadius: 10))
+            .clipShape(.rect(cornerRadius: Theme.Radius.well))
         }
     }
 
@@ -96,16 +96,8 @@ struct PhaseCard: View {
 
     private func phaseHeader(_ phase: BriefPhase) -> some View {
         HStack(spacing: 8) {
-            HStack(spacing: 6) {
-                LucideIcon(name: phaseIcon(phase), size: 13, fallback: "airplane")
-                Text(phase.phaseLabel ?? phase.code.capitalized)
-                    .font(.subheadline.weight(.bold))
-            }
-            .foregroundStyle(phaseColor(phase))
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
-            .background(phaseColor(phase).opacity(0.12))
-            .clipShape(.capsule)
+            StatusChip(text: phase.phaseLabel ?? phase.code.capitalized,
+                       icon: phaseIcon(phase), tone: phaseTone(phase))
 
             Spacer()
 
@@ -134,15 +126,8 @@ struct PhaseCard: View {
                     .textCase(.uppercase)
                 if phase.isControlled {
                     // FAA-assigned time — materially harder than an estimate.
-                    Text("FAA-CONTROLLED")
-                        .font(.caption2.weight(.bold))
-                        .textCase(.uppercase)
-                        .kerning(0.6)
-                        .foregroundStyle(Theme.goldText)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Theme.gold.opacity(0.14))
-                        .clipShape(.capsule)
+                    StatusChip(text: "FAA-controlled", tone: .watch, size: .mini,
+                               uppercased: true)
                 }
             }
 
@@ -196,13 +181,8 @@ struct PhaseCard: View {
     private func taxiBlock(_ taxi: BriefTaxi) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
-                Text(taxiLabel(taxi.assessmentCode))
-                    .font(.caption.weight(.heavy))
-                    .foregroundStyle(Theme.textVariant(of: taxiColor(taxi.assessmentCode)))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(taxiColor(taxi.assessmentCode).opacity(0.13))
-                    .clipShape(.capsule)
+                StatusChip(text: taxiLabel(taxi.assessmentCode),
+                           tone: taxiTone(taxi.assessmentCode), size: .mini)
                 Spacer()
                 if let elapsed = taxi.elapsedMin, let typical = taxi.typicalMin {
                     Text("\(elapsed) min · typical \(typical)")
@@ -216,8 +196,8 @@ struct PhaseCard: View {
             }
         }
         .padding(12)
-        .background(taxiColor(taxi.assessmentCode).opacity(0.06))
-        .clipShape(.rect(cornerRadius: 12))
+        .background(taxiTone(taxi.assessmentCode).color.opacity(0.06))
+        .clipShape(.rect(cornerRadius: Theme.Radius.well))
     }
 
     // MARK: - Live position
@@ -288,13 +268,13 @@ struct PhaseCard: View {
         }
     }
 
-    private func phaseColor(_ phase: BriefPhase) -> Color {
+    private func phaseTone(_ phase: BriefPhase) -> ChipTone {
         switch phase.code {
-        case "CANCELLED": return Theme.red
-        case "ARRIVED": return Theme.green
-        case "TAXI_OUT", "TAXI_IN": return Theme.gold
-        case "AIRBORNE": return Theme.teal
-        default: return Theme.inkSecondary
+        case "CANCELLED": return .alert
+        case "ARRIVED": return .ok
+        case "TAXI_OUT", "TAXI_IN": return .watch
+        case "AIRBORNE": return .info
+        default: return .neutral
         }
     }
 
@@ -307,12 +287,12 @@ struct PhaseCard: View {
         }
     }
 
-    private func taxiColor(_ code: String) -> Color {
+    private func taxiTone(_ code: String) -> ChipTone {
         switch code {
-        case "EXTENDED": return Theme.red
-        case "ELEVATED": return Theme.gold
-        case "NORMAL": return Theme.green
-        default: return Theme.inkSecondary
+        case "EXTENDED": return .alert
+        case "ELEVATED": return .watch
+        case "NORMAL": return .ok
+        default: return .neutral
         }
     }
 

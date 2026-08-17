@@ -97,13 +97,14 @@ struct ChainSection: View {
 
             HStack(spacing: 12) {
                 if let tail = chain.tailNumber {
-                    chip(icon: "plane", text: tail)
+                    StatusChip(text: tail, icon: "plane", tone: .neutral, size: .mini)
                 }
                 if let type = chain.aircraftType {
-                    chip(icon: "info", text: type)
+                    StatusChip(text: type, icon: "info", tone: .neutral, size: .mini)
                 }
                 if let category = chain.aircraftCategory {
-                    chip(icon: "ruler", text: category.capitalized)
+                    StatusChip(text: category.capitalized, icon: "ruler",
+                               tone: .neutral, size: .mini)
                 }
                 Spacer()
             }
@@ -144,7 +145,7 @@ struct ChainSection: View {
                     }
                     .padding(12)
                     .background(Theme.canvas)
-                    .clipShape(.rect(cornerRadius: 12))
+                    .clipShape(.rect(cornerRadius: Theme.Radius.well))
                 }
                 .buttonStyle(.plain)
                 .disabled(onOpenInbound == nil)
@@ -175,8 +176,8 @@ struct ChainSection: View {
         guard let inbound = chain.inboundFlight else { return false }
         let slip = TimeFmt.slipMinutes(scheduled: inbound.scheduledIn,
                                        actual: inbound.actualIn,
-                                       estimated: inbound.estimatedIn) ?? 0
-        return slip >= 20 && inbound.actualIn == nil
+                                       estimated: inbound.estimatedIn)
+        return SlipSeverity.of(minutes: slip).isSlipped && inbound.actualIn == nil
     }
 
     private func turnRow(_ turn: TurnAnalysis) -> some View {
@@ -207,18 +208,6 @@ struct ChainSection: View {
         return Theme.green
     }
 
-    private func chip(icon: String, text: String) -> some View {
-        HStack(spacing: 4) {
-            LucideIcon(name: icon, size: 11, fallback: "circle")
-            Text(text)
-                .font(.caption2.weight(.medium))
-        }
-        .foregroundStyle(Theme.inkSecondary)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(Theme.inkSecondary.opacity(0.08))
-        .clipShape(.capsule)
-    }
 }
 
 // MARK: - Map preview
@@ -243,7 +232,7 @@ struct MapPreviewSection: View {
                         }
                     }
                     .frame(height: 170)
-                    .clipShape(.rect(cornerRadius: 14))
+                    .clipShape(.rect(cornerRadius: Theme.Radius.well))
                     .allowsHitTesting(false)
                     .overlay(alignment: .bottomTrailing) {
                         HStack(spacing: 4) {
@@ -263,13 +252,16 @@ struct MapPreviewSection: View {
 
                 HStack(spacing: 8) {
                     if let alt = position.altitudeFt {
-                        statChip(icon: "mountain", text: "\(Int(alt)) ft")
+                        StatusChip(text: "\(Int(alt)) ft", icon: "mountain",
+                                   tone: .info, size: .mini)
                     }
                     if let speed = position.groundspeedKts {
-                        statChip(icon: "gauge", text: "\(Int(speed)) kt")
+                        StatusChip(text: "\(Int(speed)) kt", icon: "gauge",
+                                   tone: .info, size: .mini)
                     }
                     if let source = position.source {
-                        statChip(icon: "radio", text: source.replacingOccurrences(of: "_", with: " "))
+                        StatusChip(text: source.replacingOccurrences(of: "_", with: " "),
+                                   icon: "radio", tone: .info, size: .mini)
                     }
                     Spacer()
                 }
@@ -278,19 +270,6 @@ struct MapPreviewSection: View {
         }
     }
 
-    private func statChip(icon: String, text: String) -> some View {
-        HStack(spacing: 4) {
-            LucideIcon(name: icon, size: 11, fallback: "circle")
-            Text(text)
-                .font(.caption2.weight(.medium))
-                .monospacedDigit()
-        }
-        .foregroundStyle(Theme.teal)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(Theme.teal.opacity(0.1))
-        .clipShape(.capsule)
-    }
 }
 
 /// Rotated plane glyph used as a map annotation.
@@ -384,13 +363,8 @@ struct AirportWeatherCard: View {
                             .font(.subheadline.weight(.bold))
                             .foregroundStyle(Theme.ink)
                         if let category = metar?.flightCategory {
-                            Text(category)
-                                .font(.caption2.weight(.bold))
-                                .foregroundStyle(categoryColor(category))
-                                .padding(.horizontal, 7)
-                                .padding(.vertical, 3)
-                                .background(categoryColor(category).opacity(0.13))
-                                .clipShape(.capsule)
+                            StatusChip(text: category, tone: categoryTone(category),
+                                       size: .mini)
                         }
                         if onOpenWeather != nil {
                             LucideIcon(name: "info", size: 13, fallback: "info.circle")
@@ -451,7 +425,7 @@ struct AirportWeatherCard: View {
         }
         .padding(12)
         .background(Theme.canvas)
-        .clipShape(.rect(cornerRadius: 12))
+        .clipShape(.rect(cornerRadius: Theme.Radius.well))
     }
 
     @ViewBuilder
@@ -460,18 +434,18 @@ struct AirportWeatherCard: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
                     if !(record.groundStops ?? []).isEmpty {
-                        programChip("Ground stop", color: Theme.red, icon: "octagon-alert")
+                        programChip("Ground stop", tone: .alert, icon: "octagon-alert")
                     }
                     if !(record.groundDelayPrograms ?? []).isEmpty {
                         programChip(record.gdpDelaySummary.map { "GDP \($0)" } ?? "GDP",
-                                    color: Theme.gold, icon: "timer")
+                                    tone: .watch, icon: "timer")
                     }
                     if !(record.arrivalDepartureDelays ?? []).isEmpty {
                         programChip(record.delayChipText.map { "Delays \($0)" } ?? "Delays",
-                                    color: Theme.gold, icon: "hourglass")
+                                    tone: .watch, icon: "hourglass")
                     }
                     if !(record.closures ?? []).isEmpty {
-                        programChip("Closure", color: Theme.gold, icon: "construction")
+                        programChip("Closure", tone: .watch, icon: "construction")
                     }
                 }
             }
@@ -486,36 +460,24 @@ struct AirportWeatherCard: View {
         }
     }
 
-    private func programChip(_ text: String, color: Color, icon: String) -> some View {
+    private func programChip(_ text: String, tone: ChipTone, icon: String) -> some View {
         Button {
             onOpenFaa?()
         } label: {
-            HStack(spacing: 4) {
-                LucideIcon(name: icon, size: 11, fallback: "exclamationmark.triangle")
-                    .foregroundStyle(color)
-                Text(text)
-                    .font(.caption2.weight(.bold))
-                if onOpenFaa != nil {
-                    LucideIcon(name: "chevron-right", size: 9, fallback: "chevron.right")
-                }
-            }
-            .foregroundStyle(Theme.textVariant(of: color))
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(color.opacity(0.13))
-            .clipShape(.capsule)
+            StatusChip(text: text, icon: icon, tone: tone, size: .mini,
+                       trailingIcon: onOpenFaa != nil ? "chevron-right" : nil)
         }
         .buttonStyle(.plain)
         .disabled(onOpenFaa == nil)
     }
 
-    private func categoryColor(_ category: String) -> Color {
+    private func categoryTone(_ category: String) -> ChipTone {
         switch category.uppercased() {
-        case "VFR": return Theme.green
-        case "MVFR": return Theme.teal
-        case "IFR": return Theme.gold
-        case "LIFR": return Theme.red
-        default: return Theme.inkSecondary
+        case "VFR": return .ok
+        case "MVFR": return .info
+        case "IFR": return .watch
+        case "LIFR": return .alert
+        default: return .neutral
         }
     }
 }

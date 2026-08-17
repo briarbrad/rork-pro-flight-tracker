@@ -531,13 +531,13 @@ struct FaaProgramsPopupContent: View {
             .padding(10)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Theme.card)
-            .clipShape(.rect(cornerRadius: 10))
+            .clipShape(.rect(cornerRadius: Theme.Radius.well))
         } else if let text = item.stringValue {
             GlossaryText(text: text, font: .caption, color: Theme.ink)
                 .padding(10)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Theme.card)
-                .clipShape(.rect(cornerRadius: 10))
+                .clipShape(.rect(cornerRadius: Theme.Radius.well))
         }
     }
 

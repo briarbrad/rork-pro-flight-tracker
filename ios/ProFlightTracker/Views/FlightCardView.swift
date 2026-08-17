@@ -38,14 +38,17 @@ struct FlightCardView: View {
             routeRow
 
             HStack(spacing: 8) {
-                statusChip
+                StatusChip(text: leg?.status ?? "Awaiting data", icon: "radio",
+                           tone: .info, size: .mini)
                 if let gate = leg?.gateOrigin {
-                    infoChip(icon: "door-open", text: "Gate \(gate)")
+                    StatusChip(text: "Gate \(gate)", icon: "door-open",
+                               tone: .neutral, size: .mini)
                 }
                 if let signals = assessment?.signals, !signals.isEmpty {
-                    infoChip(icon: "activity",
-                             text: "\(signals.count) signal\(signals.count == 1 ? "" : "s")",
-                             tint: assessment?.level.color)
+                    StatusChip(text: "\(signals.count) signal\(signals.count == 1 ? "" : "s")",
+                               icon: "activity",
+                               tone: assessment.map { ChipTone.from($0.level) } ?? .neutral,
+                               size: .mini)
                 }
                 Spacer()
             }
@@ -68,7 +71,7 @@ struct FlightCardView: View {
                     .foregroundStyle(Theme.ink)
                 timeText(leg?.estimatedOut ?? leg?.scheduledOut,
                          zone: zones.origin,
-                         tint: departureSlipped ? Theme.gold : Theme.inkSecondary,
+                         tint: departureSlip.textColor(default: Theme.inkSecondary),
                          alignment: .leading)
             }
 
@@ -110,25 +113,7 @@ struct FlightCardView: View {
         }
     }
 
-    private var departureSlipped: Bool {
-        (leg?.departureSlipMinutes ?? 0) >= 15
-    }
-
-    private var statusChip: some View {
-        infoChip(icon: "radio", text: leg?.status ?? "Awaiting data", tint: Theme.teal)
-    }
-
-    private func infoChip(icon: String, text: String, tint: Color? = nil) -> some View {
-        HStack(spacing: 4) {
-            LucideIcon(name: icon, size: 11, fallback: "circle.fill")
-            Text(text)
-                .font(.caption2.weight(.medium))
-                .lineLimit(1)
-        }
-        .foregroundStyle(tint ?? Theme.inkSecondary)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background((tint ?? Theme.inkSecondary).opacity(0.1))
-        .clipShape(.capsule)
+    private var departureSlip: SlipSeverity {
+        SlipSeverity.of(minutes: leg?.departureSlipMinutes)
     }
 }
