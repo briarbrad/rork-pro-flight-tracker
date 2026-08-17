@@ -89,11 +89,16 @@ struct ChainSection: View {
     let chain: ChainData
     /// Zone of the airport the inbound leg lands at — i.e. this flight's origin.
     var arrivalZone: TimeZone? = nil
+    /// Off when rendered under a disclosure header that already names the
+    /// section — avoids the repeated "Your aircraft" title.
+    var showHeader: Bool = true
     var onOpenInbound: ((AeroFlight) -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            SectionHeader(icon: "link", title: "Your aircraft")
+            if showHeader {
+                SectionHeader(icon: "link", title: "Your aircraft")
+            }
 
             HStack(spacing: 12) {
                 if let tail = chain.tailNumber {
@@ -216,12 +221,17 @@ struct ChainSection: View {
 struct MapPreviewSection: View {
     let position: AircraftPosition?
     let flightIdent: String
+    /// Off when rendered under a disclosure header that already names the
+    /// section — avoids the repeated "Live position" title.
+    var showHeader: Bool = true
     let onExpand: () -> Void
 
     var body: some View {
         if let position, let lat = position.latitude, let lon = position.longitude {
             VStack(alignment: .leading, spacing: 12) {
-                SectionHeader(icon: "map", title: "Live position")
+                if showHeader {
+                    SectionHeader(icon: "map", title: "Live position")
+                }
 
                 Button(action: onExpand) {
                     Map(initialPosition: .region(MKCoordinateRegion(
@@ -302,6 +312,9 @@ struct WeatherSection: View {
     let faa: [String: FaaAirportStatus]?
     var title: String = "Airport weather & FAA status"
     var horizonNote: String? = nil
+    /// Off when rendered under a disclosure header that already names the
+    /// section — the horizon note still shows.
+    var showHeader: Bool = true
     var onOpenWeather: ((String) -> Void)? = nil
     var onOpenFaa: ((String) -> Void)? = nil
 
@@ -309,7 +322,9 @@ struct WeatherSection: View {
         let airports = airportList
         if !airports.isEmpty {
             VStack(alignment: .leading, spacing: 12) {
-                SectionHeader(icon: "cloud-sun", title: title)
+                if showHeader {
+                    SectionHeader(icon: "cloud-sun", title: title)
+                }
                 if let horizonNote {
                     HStack(alignment: .top, spacing: 6) {
                         LucideIcon(name: "hourglass", size: 12, fallback: "hourglass")

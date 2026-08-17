@@ -190,18 +190,18 @@ struct FlightDetailView: View {
         if snapshot?.chain != nil {
             CollapsibleSection(icon: "link", title: "Your aircraft",
                                subtitle: "Inbound leg and turn time") {
-                chainSection
+                chainSection(showHeader: false)
             }
         }
         if snapshot?.chain?.aircraftPosition != nil {
             CollapsibleSection(icon: "map", title: "Live position") {
-                mapSection
+                mapSection(showHeader: false)
             }
         }
         if leg?.originIcao != nil || leg?.destIcao != nil {
             CollapsibleSection(icon: "cloud-sun", title: "Airport conditions",
                                subtitle: "Reference only at this horizon") {
-                weatherSection
+                weatherSection(showHeader: false)
                 EnrouteHazardsSection(convective: snapshot?.convective,
                                       internationalSigmets: snapshot?.internationalSigmets)
             }
@@ -220,16 +220,16 @@ struct FlightDetailView: View {
     private var dayOfLayout: some View {
         heroCard
         // Live map promoted to slot 2 (renders only when a position exists).
-        mapSection
+        mapSection(showHeader: true)
         edctBannerView
         predictedTimesCard
-        weatherSection
+        weatherSection(showHeader: true)
         forecastWindows
         BriefSection(flight: flight)
         signalsSection
         EnrouteHazardsSection(convective: snapshot?.convective,
                               internationalSigmets: snapshot?.internationalSigmets)
-        chainSection
+        chainSection(showHeader: true)
         OpsSection(originIcao: leg?.originIcao,
                    destIcao: leg?.destIcao,
                    hoursToDeparture: hoursToDeparture)
@@ -326,33 +326,38 @@ struct FlightDetailView: View {
         }
     }
 
+    /// `showHeader: false` when rendered under a CollapsibleSection whose
+    /// disclosure header already names the section — no repeated titles.
     @ViewBuilder
-    private var chainSection: some View {
+    private func chainSection(showHeader: Bool) -> some View {
         if let chain = snapshot?.chain {
             // The inbound leg lands at this flight's origin, so its ETA
             // reads in the origin's local time.
-            ChainSection(chain: chain, arrivalZone: zones.origin) { inbound in
+            ChainSection(chain: chain, arrivalZone: zones.origin,
+                         showHeader: showHeader) { inbound in
                 Haptics.tap()
                 inboundToShow = inbound
             }
         }
     }
 
-    private var mapSection: some View {
+    private func mapSection(showHeader: Bool) -> some View {
         MapPreviewSection(position: snapshot?.chain?.aircraftPosition,
-                          flightIdent: flight.ident) {
+                          flightIdent: flight.ident,
+                          showHeader: showHeader) {
             Haptics.tap()
             showingMap = true
         }
     }
 
-    private var weatherSection: some View {
+    private func weatherSection(showHeader: Bool) -> some View {
         WeatherSection(leg: leg,
                        metar: snapshot?.metar,
                        taf: snapshot?.taf,
                        faa: snapshot?.faa,
                        title: conditionsTitle,
                        horizonNote: conditionsNote,
+                       showHeader: showHeader,
                        onOpenWeather: { icao in
                            Haptics.tap()
                            popup = .weather(icao: icao,
