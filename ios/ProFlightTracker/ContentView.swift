@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// Root tab navigation: Flights watchlist, Airports lookup, Alerts feed.
+/// Root tab navigation: Trips watchlist and Alerts feed. Airport lookup is
+/// reached from the Trips toolbar (sheet), not a tab of its own.
 struct ContentView: View {
     @Environment(AppStore.self) private var store
 
@@ -16,12 +17,8 @@ struct ContentView: View {
 
     private var tabs: some View {
         TabView {
-            Tab("Flights", systemImage: "airplane") {
+            Tab("Trips", systemImage: "airplane") {
                 WatchlistView()
-            }
-
-            Tab("Airports", systemImage: "building.2") {
-                AirportsView()
             }
 
             Tab("Alerts", systemImage: "bell") {

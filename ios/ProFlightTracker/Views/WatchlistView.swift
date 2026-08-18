@@ -1,10 +1,12 @@
 import SwiftUI
 
 /// Home tab: tracked flights sorted by departure, pull to refresh,
-/// swipe to remove, prominent add button.
+/// swipe to remove, prominent add button. Airport lookup lives behind a
+/// toolbar button (sheet) — on demand, not a permanent tab.
 struct WatchlistView: View {
     @Environment(AppStore.self) private var store
     @State private var showingAdd: Bool = false
+    @State private var showingAirports: Bool = false
 
     var body: some View {
         NavigationStack {
@@ -16,8 +18,18 @@ struct WatchlistView: View {
                 }
             }
             .background(Theme.canvas)
-            .navigationTitle("Flights")
+            .navigationTitle("Trips")
             .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        Haptics.tap()
+                        showingAirports = true
+                    } label: {
+                        LucideIcon(name: "tower-control", size: 18, fallback: "building.2")
+                            .foregroundStyle(Theme.teal)
+                    }
+                    .accessibilityLabel("Look up an airport")
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         Haptics.tap()
@@ -31,6 +43,9 @@ struct WatchlistView: View {
             }
             .sheet(isPresented: $showingAdd) {
                 AddFlightSheet()
+            }
+            .sheet(isPresented: $showingAirports) {
+                AirportsView()
             }
             .navigationDestination(for: TrackedFlight.self) { flight in
                 FlightDetailView(flight: flight)
