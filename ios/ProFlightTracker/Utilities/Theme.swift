@@ -38,6 +38,26 @@ enum Theme {
     }
 }
 
+/// Canonical spacing scale — base unit 4, common steps 12/16/24/32.
+/// Every padding/spacing in the app should come from here, never a magic
+/// number, so the whole UI moves on one cadence.
+enum Space {
+    /// Base unit everything is a multiple of.
+    static let unit: CGFloat = 4
+    /// 4pt — hairline gaps (chip internals, icon-to-text nudges).
+    static let xxs: CGFloat = 4
+    /// 8pt — tight sibling gaps (icon + label rows).
+    static let xs: CGFloat = 8
+    /// 12pt — inner-well padding and stacked content inside a card.
+    static let sm: CGFloat = 12
+    /// 16pt — card padding and screen edge margins.
+    static let md: CGFloat = 16
+    /// 24pt — section separation and modal padding.
+    static let lg: CGFloat = 24
+    /// 32pt — hero/empty-state breathing room.
+    static let xl: CGFloat = 32
+}
+
 /// Reusable card container with soft shadow and rounded corners.
 struct CardBackground: ViewModifier {
     var padding: CGFloat = 16

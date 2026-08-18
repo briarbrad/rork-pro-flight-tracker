@@ -30,7 +30,7 @@ struct BriefSection: View {
         if let brief {
             verdictCard(brief)
         } else {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: Space.sm) {
                 SectionHeader(icon: "radar", title: "Pre-flight brief")
                 if isRunning {
                     runningRow
@@ -46,7 +46,7 @@ struct BriefSection: View {
     }
 
     private func verdictCard(_ brief: StoredBrief) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: Space.sm) {
             HStack {
                 SectionHeader(icon: "radar", title: "Pre-flight brief")
                 Button {
@@ -84,20 +84,8 @@ struct BriefSection: View {
                 .font(.caption)
                 .foregroundStyle(Theme.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)
-            Button {
-                Haptics.tap()
+            PrimaryActionButton(title: "Run brief", icon: "radar", iconFallback: "scope") {
                 Task { await runBrief() }
-            } label: {
-                HStack(spacing: 6) {
-                    LucideIcon(name: "radar", size: 14, fallback: "scope")
-                    Text("Run brief")
-                        .font(.subheadline.weight(.semibold))
-                }
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 11)
-                .background(Theme.teal)
-                .clipShape(.rect(cornerRadius: Theme.Radius.well))
             }
             Text("Uses 2–4 paid flight-data queries, so it only runs when you ask.")
                 .font(.caption2)
@@ -117,22 +105,12 @@ struct BriefSection: View {
     }
 
     private func errorRow(_ message: String) -> some View {
-        HStack(spacing: 8) {
-            LucideIcon(name: "circle-alert", size: 13, fallback: "exclamationmark.circle")
-            Text(message)
-                .font(.caption)
-            Spacer()
-            Button("Retry") {
-                Haptics.tap()
-                Task { await runBrief() }
-            }
-            .font(.caption.weight(.semibold))
-            .disabled(isRunning)
+        InlineNotice(style: .error,
+                     message: message,
+                     actionLabel: "Retry",
+                     actionDisabled: isRunning) {
+            Task { await runBrief() }
         }
-        .foregroundStyle(Theme.red)
-        .padding(10)
-        .background(Theme.red.opacity(0.08))
-        .clipShape(.rect(cornerRadius: Theme.Radius.well))
     }
 
     // MARK: - Verdict (deterministic, rendered directly from the brief)
@@ -239,47 +217,43 @@ struct BriefSection: View {
     }
 
     private func driversBlock(_ drivers: [String]) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("What's driving this")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(Theme.ink)
-            ForEach(Array(drivers.enumerated()), id: \.offset) { _, driver in
-                HStack(alignment: .top, spacing: 8) {
-                    Circle()
-                        .fill(Theme.teal)
-                        .frame(width: 5, height: 5)
-                        .padding(.top, 6)
-                    GlossaryText(text: driver, font: .caption, color: Theme.inkSecondary)
+        InsetSurface {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("What's driving this")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Theme.ink)
+                ForEach(Array(drivers.enumerated()), id: \.offset) { _, driver in
+                    HStack(alignment: .top, spacing: Space.xs) {
+                        Circle()
+                            .fill(Theme.teal)
+                            .frame(width: 5, height: 5)
+                            .padding(.top, 6)
+                        GlossaryText(text: driver, font: .caption, color: Theme.inkSecondary)
+                    }
                 }
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(Theme.canvas)
-        .clipShape(.rect(cornerRadius: Theme.Radius.well))
     }
 
     private func branchBlock(_ brief: StoredBrief, label: String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
-                LucideIcon(name: "git-branch", size: 12, fallback: "arrow.triangle.branch")
-                    .foregroundStyle(Theme.teal)
-                Text("Delay mechanism")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(Theme.ink)
-                if let code = brief.branch, code.uppercased() != "UNDETERMINED" {
-                    StatusChip(text: code, tone: .info, size: .mini, uppercased: true)
+        InsetSurface {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                    LucideIcon(name: "git-branch", size: 12, fallback: "arrow.triangle.branch")
+                        .foregroundStyle(Theme.teal)
+                    Text("Delay mechanism")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Theme.ink)
+                    if let code = brief.branch, code.uppercased() != "UNDETERMINED" {
+                        StatusChip(text: code, tone: .info, size: .mini, uppercased: true)
+                    }
+                }
+                GlossaryText(text: label, font: .caption, color: Theme.inkSecondary)
+                ForEach(Array(brief.branchEvidence.prefix(3).enumerated()), id: \.offset) { _, item in
+                    GlossaryText(text: item, font: .caption2, color: Theme.inkSecondary)
                 }
             }
-            GlossaryText(text: label, font: .caption, color: Theme.inkSecondary)
-            ForEach(Array(brief.branchEvidence.prefix(3).enumerated()), id: \.offset) { _, item in
-                GlossaryText(text: item, font: .caption2, color: Theme.inkSecondary)
-            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(Theme.canvas)
-        .clipShape(.rect(cornerRadius: Theme.Radius.well))
     }
 
     private func excludedBlock(_ excluded: [String: String]) -> some View {

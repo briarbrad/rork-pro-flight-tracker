@@ -30,7 +30,7 @@ struct OpsSection: View {
     }
 
     private var liveCard: some View {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: Space.sm) {
                 Button {
                     Haptics.tap()
                     withAnimation(.snappy) { isExpanded.toggle() }
@@ -57,9 +57,12 @@ struct OpsSection: View {
 
                 if isExpanded {
                     if let loadError {
-                        Text(loadError)
-                            .font(.caption)
-                            .foregroundStyle(Theme.red)
+                        InlineNotice(style: .error,
+                                     message: loadError,
+                                     actionLabel: "Retry",
+                                     actionDisabled: isLoading) {
+                            loadOps()
+                        }
                     }
                     if isLoading && notams == nil {
                         Text("Pulling NOTAMs, RVR, lightning, and pilot reports — live FAA feeds take a few seconds…")
@@ -303,19 +306,17 @@ struct OpsSection: View {
 
     private func opsBlock<Content: View>(icon: String, title: String,
                                          @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
-                LucideIcon(name: icon, size: 13, fallback: "circle")
-                    .foregroundStyle(Theme.teal)
-                Text(title)
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(Theme.ink)
+        InsetSurface {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                    LucideIcon(name: icon, size: 13, fallback: "circle")
+                        .foregroundStyle(Theme.teal)
+                    Text(title)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Theme.ink)
+                }
+                content()
             }
-            content()
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(Theme.canvas)
-        .clipShape(.rect(cornerRadius: 12))
     }
 }

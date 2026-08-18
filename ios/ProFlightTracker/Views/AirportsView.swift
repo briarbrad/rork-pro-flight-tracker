@@ -21,7 +21,7 @@ struct AirportsView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 14) {
+                VStack(spacing: Space.md - 2) {
                     searchBar
 
                     if !recents.isEmpty && lookedUpIcao == nil {
@@ -38,10 +38,10 @@ struct AirportsView: View {
                         placeholder
                     }
                 }
-                .padding(.horizontal, 16)
+                .padding(.horizontal, Space.md)
             }
             // Keeps the floating tab bar from covering the last card.
-            .contentMargins(.bottom, 24, for: .scrollContent)
+            .contentMargins(.bottom, Space.lg, for: .scrollContent)
             .background(Theme.canvas)
             .navigationTitle("Airports")
             .fullScreenCover(item: $popup) { DetailPopupHost(popup: $0) }
@@ -110,24 +110,11 @@ struct AirportsView: View {
     }
 
     private var placeholder: some View {
-        VStack(spacing: 14) {
-            ZStack {
-                Circle()
-                    .fill(Theme.teal.opacity(0.1))
-                    .frame(width: 96, height: 96)
-                LucideIcon(name: "tower-control", size: 42, fallback: "building.2")
-                    .foregroundStyle(Theme.teal)
-            }
-            Text("Check any airport")
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(Theme.ink)
-            Text("Live METAR and TAF, FAA ground stops and delay programs, plus nearby lightning — straight from the engine's free feeds.")
-                .font(.subheadline)
-                .foregroundStyle(Theme.inkSecondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
-        }
-        .padding(.top, 60)
+        EmptyState(icon: "tower-control",
+                   iconFallback: "building.2",
+                   title: "Check any airport",
+                   message: "Live METAR and TAF, FAA ground stops and delay programs, plus nearby lightning — straight from the engine's free feeds.")
+            .padding(.top, 60)
     }
 
     private var loadingCard: some View {
@@ -143,28 +130,13 @@ struct AirportsView: View {
     }
 
     private func errorCard(_ message: String) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
-                LucideIcon(name: "triangle-alert", size: 16, fallback: "exclamationmark.triangle")
-                Text(message)
-                    .font(.subheadline)
-            }
-            .foregroundStyle(Theme.red)
+        VStack(alignment: .leading, spacing: Space.sm) {
+            InlineNotice(style: .error, message: message)
             if let lastAttempted {
-                Button {
-                    Haptics.tap()
+                PrimaryActionButton(title: "Retry \(lastAttempted)",
+                                    icon: "refresh-cw",
+                                    iconFallback: "arrow.clockwise") {
                     lookup(lastAttempted)
-                } label: {
-                    HStack(spacing: 6) {
-                        LucideIcon(name: "refresh-cw", size: 13, fallback: "arrow.clockwise")
-                        Text("Retry \(lastAttempted)")
-                            .font(.subheadline.weight(.semibold))
-                    }
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .background(Theme.teal)
-                    .clipShape(.rect(cornerRadius: Theme.Radius.well))
                 }
             }
         }
@@ -174,7 +146,7 @@ struct AirportsView: View {
 
     @ViewBuilder
     private func resultCards(icao: String) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: Space.sm) {
             SectionHeader(icon: "tower-control", title: icao)
             AirportWeatherCard(icao: icao, metar: metar, taf: taf, faa: faa,
                                onOpenWeather: {
@@ -213,6 +185,12 @@ struct AirportsView: View {
     /// Forecast times read in the airport's own local time — that's the clock a
     /// traveller standing there is on.
     private func tafTimeline(_ periods: [TafPeriod], zone: TimeZone?) -> some View {
+        InsetSurface {
+            timelineContent(periods, zone: zone)
+        }
+    }
+
+    private func timelineContent(_ periods: [TafPeriod], zone: TimeZone?) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
                 Text("Forecast periods")
@@ -243,9 +221,6 @@ struct AirportsView: View {
                 }
             }
         }
-        .padding(12)
-        .background(Theme.canvas)
-        .clipShape(.rect(cornerRadius: Theme.Radius.well))
     }
 
     private func periodSummary(_ period: TafPeriod) -> String {

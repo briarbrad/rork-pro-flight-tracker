@@ -66,7 +66,7 @@ struct DetailPopupBody: View {
     @State private var jargon: GlossaryEntry?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: Space.md - 2) {
             switch popup {
             case .riskSignal(let signal):
                 RiskSignalPopupContent(signal: signal)
@@ -131,30 +131,29 @@ struct JargonBubble: View {
     let onClose: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
-                LucideIcon(name: "book-open", size: 12, fallback: "book")
-                    .foregroundStyle(Theme.teal)
-                Text("\(entry.term) — \(entry.name)")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(Theme.ink)
-                Spacer()
-                Button(action: onClose) {
-                    LucideIcon(name: "x", size: 11, fallback: "xmark")
-                        .foregroundStyle(Theme.inkSecondary)
+        InsetSurface(tint: Theme.teal.opacity(0.08)) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                    LucideIcon(name: "book-open", size: 12, fallback: "book")
+                        .foregroundStyle(Theme.teal)
+                    Text("\(entry.term) — \(entry.name)")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Theme.ink)
+                    Spacer()
+                    Button(action: onClose) {
+                        LucideIcon(name: "x", size: 11, fallback: "xmark")
+                            .foregroundStyle(Theme.inkSecondary)
+                    }
+                    .accessibilityLabel("Close definition")
                 }
-                .accessibilityLabel("Close definition")
+                Text(entry.definition)
+                    .font(.caption)
+                    .foregroundStyle(Theme.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            Text(entry.definition)
-                .font(.caption)
-                .foregroundStyle(Theme.inkSecondary)
-                .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(12)
-        .background(Theme.teal.opacity(0.08))
-        .clipShape(.rect(cornerRadius: 12))
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: Theme.Radius.well)
                 .strokeBorder(Theme.teal.opacity(0.25), lineWidth: 1)
         )
     }
@@ -494,52 +493,47 @@ struct FaaProgramsPopupContent: View {
     private func programSection(title: String, color: Color, icon: String,
                                 explanation: String, items: [JSONValue]?) -> some View {
         if let items, !items.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 6) {
-                    LucideIcon(name: icon, size: 13, fallback: "exclamationmark.triangle")
-                        .foregroundStyle(color)
-                    Text(title)
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(color)
-                    Spacer()
-                }
-                GlossaryText(text: explanation, font: .subheadline)
-                ForEach(Array(items.prefix(4).enumerated()), id: \.offset) { _, item in
-                    programDetails(item)
+            InsetSurface(tint: color.opacity(0.07)) {
+                VStack(alignment: .leading, spacing: Space.xs) {
+                    HStack(spacing: 6) {
+                        LucideIcon(name: icon, size: 13, fallback: "exclamationmark.triangle")
+                            .foregroundStyle(color)
+                        Text(title)
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(color)
+                        Spacer()
+                    }
+                    GlossaryText(text: explanation, font: .subheadline)
+                    ForEach(Array(items.prefix(4).enumerated()), id: \.offset) { _, item in
+                        programDetails(item)
+                    }
                 }
             }
-            .padding(12)
-            .background(color.opacity(0.07))
-            .clipShape(.rect(cornerRadius: 12))
         }
     }
 
     @ViewBuilder
     private func programDetails(_ item: JSONValue) -> some View {
         if let object = item.objectValue {
-            VStack(alignment: .leading, spacing: 3) {
-                ForEach(detailPairs(object), id: \.0) { pair in
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Text(pair.0)
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(Theme.inkSecondary)
-                        Text(pair.1)
-                            .font(.caption)
-                            .foregroundStyle(Theme.ink)
-                            .fixedSize(horizontal: false, vertical: true)
+            InsetSurface(tint: Theme.card, padding: Space.sm - 2) {
+                VStack(alignment: .leading, spacing: 3) {
+                    ForEach(detailPairs(object), id: \.0) { pair in
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Text(pair.0)
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(Theme.inkSecondary)
+                            Text(pair.1)
+                                .font(.caption)
+                                .foregroundStyle(Theme.ink)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
                 }
             }
-            .padding(10)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Theme.card)
-            .clipShape(.rect(cornerRadius: Theme.Radius.well))
         } else if let text = item.stringValue {
-            GlossaryText(text: text, font: .caption, color: Theme.ink)
-                .padding(10)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Theme.card)
-                .clipShape(.rect(cornerRadius: Theme.Radius.well))
+            InsetSurface(tint: Theme.card, padding: Space.sm - 2) {
+                GlossaryText(text: text, font: .caption, color: Theme.ink)
+            }
         }
     }
 
@@ -617,14 +611,12 @@ struct JargonSheet: View {
 
 @ViewBuilder
 func popupBlock<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
-    VStack(alignment: .leading, spacing: 6) {
-        Text(title)
-            .font(.caption.weight(.bold))
-            .foregroundStyle(Theme.ink)
-        content()
+    InsetSurface {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(Theme.ink)
+            content()
+        }
     }
-    .frame(maxWidth: .infinity, alignment: .leading)
-    .padding(12)
-    .background(Theme.canvas)
-    .clipShape(.rect(cornerRadius: 12))
 }

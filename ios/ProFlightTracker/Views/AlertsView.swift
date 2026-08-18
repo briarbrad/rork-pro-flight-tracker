@@ -46,7 +46,7 @@ struct AlertsView: View {
                              isFlightTracked: store.trackedFlight(forKey: alert.flightKey) != nil)
                 }
                 .buttonStyle(.plain)
-                .listRowInsets(EdgeInsets(top: 5, leading: 16, bottom: 5, trailing: 16))
+                .listRowInsets(EdgeInsets(top: 5, leading: Space.md, bottom: 5, trailing: Space.md))
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
             }
@@ -54,7 +54,7 @@ struct AlertsView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         // Keeps the floating tab bar from covering the last alert card.
-        .contentMargins(.bottom, 24, for: .scrollContent)
+        .contentMargins(.bottom, Space.lg, for: .scrollContent)
     }
 
     /// Opening an alert marks it read; if its flight is still on the
@@ -68,24 +68,12 @@ struct AlertsView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: 14) {
-            ZStack {
-                Circle()
-                    .fill(Theme.green.opacity(0.12))
-                    .frame(width: 96, height: 96)
-                LucideIcon(name: "bell", size: 40, fallback: "bell")
-                    .foregroundStyle(Theme.green)
-            }
-            Text("All quiet")
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(Theme.ink)
-            Text("When any early-warning signal fires on a tracked flight — a ground stop, a late inbound, storms building — it lands here.")
-                .font(.subheadline)
-                .foregroundStyle(Theme.inkSecondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 40)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        EmptyState(icon: "bell",
+                   iconFallback: "bell",
+                   tint: Theme.green,
+                   title: "All quiet",
+                   message: "When any early-warning signal fires on a tracked flight — a ground stop, a late inbound, storms building — it lands here.")
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
