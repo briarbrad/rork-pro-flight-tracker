@@ -49,6 +49,15 @@ struct FlightHeroCard: View {
 
             timeline
 
+            // Forward-looking layer, directly under the timeline: the
+            // recorded delay trend across tracker checks plus the analyst's
+            // own "what would change the picture" line. Suppressed once the
+            // flight is over — history must never restate as prediction.
+            if phase?.isOver != true,
+               DelayOutlookView.hasContent(trend: delayTrend, outlook: outlookLine) {
+                DelayOutlookView(trend: delayTrend, outlook: outlookLine)
+            }
+
             // Taxi assessment — whether this wait is abnormal for THIS
             // airport. Summary is server-written, rendered verbatim.
             if let taxi, taxi.isApplicable {
@@ -223,6 +232,22 @@ struct FlightHeroCard: View {
         guard let times = timelineTimes else { return nil }
         let effects = live != nil ? (live?.effects ?? brief?.effects) : brief?.effects
         return DeltaExplainer(times: times, effects: effects)
+    }
+
+    // MARK: - Delay outlook (trend + narrative forward line)
+
+    /// Server-recorded delta history — the live layer's copy is fresher on
+    /// every cheap refresh; the brief only feeds it before the first pull.
+    private var delayTrend: BriefDelayTrend? {
+        live?.delayTrend ?? brief?.delayTrend
+    }
+
+    /// The analyst narrative's forward-looking line, verbatim. Fresh briefs
+    /// only: a stale brief's "could get worse if…" may describe conditions
+    /// that already resolved.
+    private var outlookLine: String? {
+        guard let brief, !brief.isStale else { return nil }
+        return NarrativeOutlook.outlookLine(from: brief.narrative)
     }
 
     // MARK: - Taxi assessment

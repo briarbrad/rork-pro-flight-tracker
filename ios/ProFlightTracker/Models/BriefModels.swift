@@ -20,6 +20,7 @@ nonisolated struct BriefEnvelope: Codable, Sendable {
     let sourcesExcluded: [String: String]?
     let refreshAfterSeconds: Int?
     let llmPayload: BriefLlmPayload?
+    let delayTrend: BriefDelayTrend?
     let aeroapiQueriesUsed: Int?
 
     enum CodingKeys: String, CodingKey {
@@ -31,7 +32,47 @@ nonisolated struct BriefEnvelope: Codable, Sendable {
         case sourcesExcluded = "sources_excluded"
         case refreshAfterSeconds = "refresh_after_seconds"
         case llmPayload = "llm_payload"
+        case delayTrend = "delay_trend"
         case aeroapiQueriesUsed = "aeroapi_queries_used"
+    }
+}
+
+/// Server-recorded history of how this flight's delay has moved across the
+/// background tracker's scheduled checks. Written server-side on the existing
+/// polling cadence and classified server-side — the client renders the series
+/// and direction verbatim and never re-derives a trend.
+nonisolated struct BriefDelayTrend: Codable, Hashable, Sendable {
+    let snapshots: [BriefDelaySnapshot]?
+    /// "widening" / "narrowing" / "steady"; nil = not enough checks yet.
+    /// One check is a data point, not a trend — nil means show NOTHING,
+    /// never a false "holding steady".
+    let direction: String?
+    let checks: Int?
+
+    var directionCode: String? {
+        guard let direction, !direction.isEmpty else { return nil }
+        return direction.lowercased()
+    }
+
+    /// Renderable only with a server-classified direction AND ≥2 points.
+    var hasTrend: Bool {
+        directionCode != nil && (snapshots?.count ?? 0) >= 2
+    }
+
+    var orderedSnapshots: [BriefDelaySnapshot] { snapshots ?? [] }
+}
+
+/// One scheduled check's outcome: when it ran and how far off schedule the
+/// flight's next gate event was at that moment.
+nonisolated struct BriefDelaySnapshot: Codable, Hashable, Sendable {
+    let checkedAt: String?
+    let deltaMinutes: Double?
+    let risk: String?
+
+    enum CodingKeys: String, CodingKey {
+        case risk
+        case checkedAt = "checked_at"
+        case deltaMinutes = "delta_minutes"
     }
 }
 
@@ -463,6 +504,9 @@ nonisolated struct StoredBrief: Codable, Hashable, Sendable {
     /// brief's phase — the brief no longer describes reality and must wear
     /// the stale treatment regardless of the server's staleness threshold.
     var contradictedByLiveData: Bool?
+    /// Delay history across the tracker's scheduled checks — optional so
+    /// briefs persisted before this field existed still decode.
+    var delayTrend: BriefDelayTrend?
     var narrative: String?
     var narrativeFailed: Bool
     let runAt: Date
@@ -487,6 +531,7 @@ nonisolated struct StoredBrief: Codable, Hashable, Sendable {
         taxi = envelope.taxi
         position = envelope.position
         refreshAfterSeconds = envelope.refreshAfterSeconds
+        delayTrend = envelope.delayTrend
         narrative = nil
         narrativeFailed = false
         runAt = Date()

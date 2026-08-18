@@ -24,6 +24,9 @@ nonisolated struct LiveEnvelope: Codable, Sendable {
     let effects: [BriefEffect]?
     let timezones: BriefTimezones?
     let edctCache: LiveEdctCache?
+    /// Delay history across the tracker's scheduled checks — free to attach
+    /// here (a DB read), so the trend stays current on cheap refreshes.
+    let delayTrend: BriefDelayTrend?
     /// Staleness threshold in seconds; null once the flight is finished.
     let refreshAfterSeconds: Int?
     let aeroapiQueriesUsed: Int?
@@ -34,6 +37,7 @@ nonisolated struct LiveEnvelope: Codable, Sendable {
         case fetchedAt = "fetched_at"
         case predictedTimes = "predicted_times"
         case edctCache = "edct_cache"
+        case delayTrend = "delay_trend"
         case refreshAfterSeconds = "refresh_after_seconds"
         case aeroapiQueriesUsed = "aeroapi_queries_used"
     }
@@ -76,6 +80,9 @@ nonisolated struct StoredLive: Codable, Hashable, Sendable {
     /// flight is finished — final, stop refreshing it.
     var refreshAfterSeconds: Int?
     var edctCacheAttached: Bool?
+    /// Delay history across scheduled checks — optional so pre-existing
+    /// persisted snapshots still decode.
+    var delayTrend: BriefDelayTrend?
     /// Source-pull time — freshness captions and every advancing clock
     /// (countdowns, elapsed-in-phase) anchor here.
     var fetchedAt: Date
@@ -90,6 +97,7 @@ nonisolated struct StoredLive: Codable, Hashable, Sendable {
         verdictScope = envelope.verdict?.scope
         refreshAfterSeconds = envelope.refreshAfterSeconds
         edctCacheAttached = envelope.edctCache?.attached
+        delayTrend = envelope.delayTrend
         fetchedAt = TimeFmt.parseISO(envelope.fetchedAt) ?? Date()
     }
 
