@@ -96,6 +96,14 @@ struct FlightDetailView: View {
 
     private var briefHasEffects: Bool { brief?.hasEffects == true }
 
+    /// Nothing on file for this flight yet — first open before the initial
+    /// pull lands. Renders a placeholder skeleton in the real layout's shape
+    /// instead of a blank screen; the global banner (with retry) still shows
+    /// above it if that first pull fails.
+    private var isFirstLoad: Bool {
+        leg == nil && live == nil && brief == nil
+    }
+
     /// Current status-scope effects from the cheap live refresh — the
     /// evidence that stays true even after the brief narrative goes stale.
     private var liveEffects: [BriefEffect] { live?.effects ?? [] }
@@ -133,10 +141,14 @@ struct FlightDetailView: View {
                     }
                 }
 
-                switch mode {
-                case .preFlight: preFlightLayout
-                case .dayOf: dayOfLayout
-                case .closed: closedLayout
+                if isFirstLoad {
+                    FlightDetailSkeleton()
+                } else {
+                    switch mode {
+                    case .preFlight: preFlightLayout
+                    case .dayOf: dayOfLayout
+                    case .closed: closedLayout
+                    }
                 }
             }
             .padding(.horizontal, 16)

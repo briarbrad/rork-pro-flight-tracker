@@ -49,7 +49,10 @@ struct WatchlistView: View {
                 NavigationLink(value: flight) {
                     FlightCardView(flight: flight,
                                    snapshot: store.snapshots[flight.id],
-                                   isRefreshing: store.refreshing.contains(flight.id))
+                                   isRefreshing: store.refreshing.contains(flight.id),
+                                   onRetry: {
+                                       Task { await store.refresh(flight) }
+                                   })
                 }
                 .buttonStyle(.plain)
                 .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))

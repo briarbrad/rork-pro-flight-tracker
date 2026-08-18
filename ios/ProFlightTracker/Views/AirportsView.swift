@@ -10,6 +10,9 @@ struct AirportsView: View {
     @State private var faa: FaaAirportStatus?
     @State private var lightning: LightningEnvelope?
     @State private var errorMessage: String?
+    /// Last code actually sent to the API — what the error card's Retry
+    /// re-runs, independent of whatever the search field says now.
+    @State private var lastAttempted: String?
     @State private var recents: [String] = UserDefaults.standard.stringArray(forKey: "pft.recentAirports") ?? []
     @State private var popup: DetailPopup?
     @State private var jargon: GlossaryEntry?
@@ -140,12 +143,31 @@ struct AirportsView: View {
     }
 
     private func errorCard(_ message: String) -> some View {
-        HStack(spacing: 10) {
-            LucideIcon(name: "triangle-alert", size: 16, fallback: "exclamationmark.triangle")
-            Text(message)
-                .font(.subheadline)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                LucideIcon(name: "triangle-alert", size: 16, fallback: "exclamationmark.triangle")
+                Text(message)
+                    .font(.subheadline)
+            }
+            .foregroundStyle(Theme.red)
+            if let lastAttempted {
+                Button {
+                    Haptics.tap()
+                    lookup(lastAttempted)
+                } label: {
+                    HStack(spacing: 6) {
+                        LucideIcon(name: "refresh-cw", size: 13, fallback: "arrow.clockwise")
+                        Text("Retry \(lastAttempted)")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(Theme.teal)
+                    .clipShape(.rect(cornerRadius: Theme.Radius.well))
+                }
+            }
         }
-        .foregroundStyle(Theme.red)
         .frame(maxWidth: .infinity, alignment: .leading)
         .cardStyle()
     }
@@ -248,6 +270,7 @@ struct AirportsView: View {
         isLoading = true
         errorMessage = nil
         lookedUpIcao = nil
+        lastAttempted = icao
 
         Task {
             async let metarTask = try? API.metar(icaos: [icao])

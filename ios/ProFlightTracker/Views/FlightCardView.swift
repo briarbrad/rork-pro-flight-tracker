@@ -6,6 +6,13 @@ struct FlightCardView: View {
     let flight: TrackedFlight
     let snapshot: FlightSnapshot?
     let isRefreshing: Bool
+    /// Per-card retry for a failed refresh — fired from the error strip so a
+    /// single flight can be retried without a global pull-to-refresh.
+    var onRetry: (() -> Void)? = nil
+
+    private var refreshError: String? {
+        isRefreshing ? nil : snapshot?.refreshError
+    }
 
     private var leg: AeroFlight? { snapshot?.flight }
     /// Stale = older than the server-declared refresh window. Signalled by a
@@ -32,6 +39,9 @@ struct FlightCardView: View {
                 Spacer()
                 if isRefreshing {
                     ProgressView().controlSize(.small).tint(Theme.teal)
+                } else if refreshError != nil {
+                    StatusChip(text: "Needs refresh", icon: "triangle-alert",
+                               tone: .from(.high), size: .mini, uppercased: true)
                 } else if isStale {
                     StatusChip(text: "Stale", icon: "history", tone: .watch,
                                size: .mini, uppercased: true)
@@ -57,6 +67,43 @@ struct FlightCardView: View {
                                size: .mini)
                 }
                 Spacer()
+            }
+
+            // A failed background refresh must be visible, not silent: red
+            // strip with the reason and an in-place retry for THIS flight.
+            if let refreshError {
+                HStack(spacing: 8) {
+                    LucideIcon(name: "triangle-alert", size: 13,
+                               fallback: "exclamationmark.triangle")
+                    Text(refreshError)
+                        .font(.caption)
+                        .lineLimit(2)
+                    Spacer(minLength: 8)
+                    if let onRetry {
+                        Button {
+                            Haptics.tap()
+                            onRetry()
+                        } label: {
+                            HStack(spacing: 4) {
+                                LucideIcon(name: "refresh-cw", size: 11,
+                                           fallback: "arrow.clockwise")
+                                Text("Retry")
+                                    .font(.caption.weight(.bold))
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(Theme.red.opacity(0.12))
+                            .clipShape(.capsule)
+                        }
+                        // Borderless so the retry tap doesn't trigger the
+                        // row's NavigationLink.
+                        .buttonStyle(.borderless)
+                    }
+                }
+                .foregroundStyle(Theme.red)
+                .padding(10)
+                .background(Theme.red.opacity(0.07))
+                .clipShape(.rect(cornerRadius: Theme.Radius.well))
             }
 
             // Same freshness language as the flight screen — amber once the
