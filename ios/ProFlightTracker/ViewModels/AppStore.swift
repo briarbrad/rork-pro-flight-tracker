@@ -56,7 +56,18 @@ final class AppStore {
     var unreadAlertCount: Int { alerts.filter { !$0.isRead && !$0.isImprovement }.count }
 
     func alerts(for flightKey: String) -> [FlightAlert] {
-        alerts.filter { $0.flightKey == flightKey }.sorted { $0.createdAt > $1.createdAt }
+        alerts.filter { $0.flightKey == flightKey }.sorted { $0.updatedAt > $1.updatedAt }
+    }
+
+    func trackedFlight(forKey key: String) -> TrackedFlight? {
+        flights.first { $0.id == key }
+    }
+
+    func markAlertRead(_ alert: FlightAlert) {
+        guard let index = alerts.firstIndex(where: { $0.id == alert.id }),
+              !alerts[index].isRead else { return }
+        alerts[index].isRead = true
+        persist()
     }
 
     // MARK: - Watchlist management
@@ -353,49 +364,140 @@ final class AppStore {
             excludedSources: activeExcludedSources(snapshot.brief))
         snapshot.assessment = assessment
 
-        var newAlerts: [FlightAlert] = []
-        let previousKeys = Set(previous?.signals.map(\.key) ?? [])
+        // Context captured at fire time so the alert row can say WHERE and
+        // WHEN in the flight's life this happened, not just "something fired".
+        let route: String? = snapshot.flight.map { "\($0.originDisplay) → \($0.destDisplay)" }
+        let phaseLabel: String? = (snapshot.live?.phase
+            ?? snapshot.flight.map { FlightPhaseDerivation.minimalBriefPhase(for: $0) })?.phaseLabel
 
-        // Aggressive mode: every newly fired signal becomes an alert.
-        for signal in assessment.signals where !previousKeys.contains(signal.key) {
-            newAlerts.append(FlightAlert(
-                flightKey: flight.id, ident: flight.ident,
-                title: signal.title, message: signal.detail,
-                level: signal.level, icon: signal.icon))
+        let previousByKey = Dictionary(
+            (previous?.signals ?? []).map { ($0.key, $0) },
+            uniquingKeysWith: { first, _ in first })
+
+        // One underlying event = one alert. Brand-new signals and re-fires
+        // with changed details both route through the dedupKey upsert.
+        var newSignalAlerts: [FlightAlert] = []
+        var changedSignalAlerts: [FlightAlert] = []
+        for signal in assessment.signals {
+            let dedupKey = "signal.\(signal.key)"
+            if let old = previousByKey[signal.key] {
+                // Same event evolving (e.g. an EDCT slot moving): update the
+                // existing alert in place instead of stacking a duplicate.
+                guard old.detail != signal.detail || old.level != signal.level else { continue }
+                let note: String
+                if signal.level.rank > old.level.rank {
+                    note = "Escalated from \(old.level.rawValue)"
+                } else if signal.level.rank < old.level.rank {
+                    note = "Eased from \(old.level.rawValue)"
+                } else {
+                    note = "Details changed"
+                }
+                changedSignalAlerts.append(FlightAlert(
+                    flightKey: flight.id, ident: flight.ident,
+                    title: signal.title, message: signal.detail,
+                    level: signal.level, icon: signal.icon,
+                    isImprovement: signal.level.rank < old.level.rank,
+                    dedupKey: dedupKey, route: route, phaseLabel: phaseLabel,
+                    changeNote: note))
+            } else {
+                newSignalAlerts.append(FlightAlert(
+                    flightKey: flight.id, ident: flight.ident,
+                    title: signal.title, message: signal.detail,
+                    level: signal.level, icon: signal.icon,
+                    dedupKey: dedupKey, route: route, phaseLabel: phaseLabel,
+                    changeNote: "New signal"))
+            }
         }
 
-        // Signal-level transitions (including improvements) also alert.
+        var candidates: [FlightAlert] = []
+
+        // Level transition: when the SAME evaluation pass also fired the
+        // signals that caused it, fold everything into ONE transition alert
+        // naming its drivers — never a transition alert stacked on top of the
+        // per-signal alerts for the same event.
         if let previous, previous.level != assessment.level {
             let improved = assessment.level.rank < previous.level.rank
-            newAlerts.append(FlightAlert(
+            let drivers = newSignalAlerts.map(\.title)
+            let message: String
+            if improved {
+                message = "Live signals improved from \(previous.level.rawValue)."
+            } else if drivers.isEmpty {
+                message = "Escalated from \(previous.level.rawValue) — open the flight for details."
+            } else {
+                message = "Escalated from \(previous.level.rawValue). Driven by: \(drivers.joined(separator: "; "))."
+            }
+            candidates.append(FlightAlert(
                 flightKey: flight.id, ident: flight.ident,
                 title: improved
                     ? "\(flight.ident) signals eased to \(assessment.level.rawValue)"
                     : "\(flight.ident) signals elevated to \(assessment.level.rawValue)",
-                message: improved
-                    ? "Live signals improved from \(previous.level.rawValue)."
-                    : "Escalated from \(previous.level.rawValue) — open the flight for details.",
+                message: message,
                 level: assessment.level,
                 icon: improved ? "trending-down" : "trending-up",
-                isImprovement: improved))
+                isImprovement: improved,
+                dedupKey: "level", route: route, phaseLabel: phaseLabel,
+                changeNote: improved
+                    ? "Was \(previous.level.rawValue)"
+                    : "Was \(previous.level.rawValue)"))
+            // Deteriorations absorb their driver signals; improvements don't
+            // suppress independent new signals.
+            if !improved { newSignalAlerts.removeAll() }
+            candidates.append(contentsOf: newSignalAlerts + changedSignalAlerts)
         } else if previous == nil, assessment.level != .low {
-            newAlerts.append(FlightAlert(
+            candidates.append(FlightAlert(
                 flightKey: flight.id, ident: flight.ident,
                 title: "\(flight.ident) already showing \(assessment.level.rawValue) signals",
                 message: "Live signals were elevated when tracking started.",
-                level: assessment.level, icon: "flag"))
+                level: assessment.level, icon: "flag",
+                dedupKey: "initial", route: route, phaseLabel: phaseLabel,
+                changeNote: "First check"))
+        } else {
+            candidates.append(contentsOf: newSignalAlerts + changedSignalAlerts)
         }
 
-        if !newAlerts.isEmpty {
-            alerts.insert(contentsOf: newAlerts, at: 0)
+        var posted: [FlightAlert] = []
+        for candidate in candidates {
+            if let stored = upsertAlert(candidate) { posted.append(stored) }
+        }
+
+        if !posted.isEmpty {
             if alerts.count > 300 { alerts = Array(alerts.prefix(300)) }
             Haptics.warning()
             // Reach the closed-in-pocket phone too: local notifications,
             // grouped per flight, severity-mapped. Improvements never post.
-            for alert in newAlerts {
+            for alert in posted {
                 NotificationService.post(alert)
             }
         }
+    }
+
+    /// Inserts a new alert, or — when an alert for the same underlying event
+    /// (flightKey + dedupKey) already exists — updates it in place: fresh
+    /// content, bumped `updatedAt`, back to unread, moved to the top.
+    /// Returns nil when nothing materially changed (no re-notify).
+    @discardableResult
+    private func upsertAlert(_ candidate: FlightAlert) -> FlightAlert? {
+        guard let index = alerts.firstIndex(where: {
+            $0.flightKey == candidate.flightKey && $0.dedupKey == candidate.dedupKey
+        }) else {
+            alerts.insert(candidate, at: 0)
+            return candidate
+        }
+        var existing = alerts[index]
+        guard existing.title != candidate.title
+            || existing.message != candidate.message
+            || existing.level != candidate.level else { return nil }
+        existing.title = candidate.title
+        existing.message = candidate.message
+        existing.level = candidate.level
+        existing.icon = candidate.icon
+        existing.isImprovement = candidate.isImprovement
+        existing.changeNote = candidate.changeNote ?? existing.changeNote
+        existing.updatedAt = Date()
+        existing.isRead = false
+        alerts.remove(at: index)
+        alerts.insert(existing, at: 0)
+        return existing
     }
 
     func markAllAlertsRead() {
