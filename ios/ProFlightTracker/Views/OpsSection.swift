@@ -150,7 +150,7 @@ struct OpsSection: View {
                          ? "No strikes detected within \(Int(lightning.searchRadiusNm ?? 20)) nm."
                          : "\(total) strikes in the area, \(close) within 5 nm. Ramp closure risk: \(lightning.rampClosureRisk ?? "unknown").")
                         .font(.caption)
-                        .foregroundStyle(close > 0 ? Theme.gold : Theme.inkSecondary)
+                        .foregroundStyle(close > 0 ? Theme.goldText : Theme.inkSecondary)
                 }
             }
         }

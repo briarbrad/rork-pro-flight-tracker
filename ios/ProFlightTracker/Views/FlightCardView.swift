@@ -8,6 +8,9 @@ struct FlightCardView: View {
     let isRefreshing: Bool
 
     private var leg: AeroFlight? { snapshot?.flight }
+    /// Stale = older than the server-declared refresh window. Signalled by a
+    /// badge plus a muted card tint — never by dimming the card's text.
+    private var isStale: Bool { snapshot?.autoRefreshDue == true && !isRefreshing }
     private var assessment: RiskAssessment? { snapshot?.assessment }
     /// Departure time in the origin's zone, arrival in the destination's.
     private var zones: FlightZones {
@@ -29,6 +32,9 @@ struct FlightCardView: View {
                 Spacer()
                 if isRefreshing {
                     ProgressView().controlSize(.small).tint(Theme.teal)
+                } else if isStale {
+                    StatusChip(text: "Stale", icon: "history", tone: .watch,
+                               size: .mini, uppercased: true)
                 }
                 // Brief verdict while fresh; the live status_only verdict
                 // escalates over it and governs once the brief goes stale.
@@ -58,10 +64,19 @@ struct FlightCardView: View {
             if let refreshed = snapshot?.lastRefreshed {
                 FreshnessCaption(asOf: refreshed,
                                  prefix: "updated",
-                                 isStale: snapshot?.autoRefreshDue == true && !isRefreshing)
+                                 isStale: isStale)
             }
         }
-        .cardStyle()
+        .padding(16)
+        .background(isStale ? Theme.staleSurface : Theme.card)
+        .clipShape(.rect(cornerRadius: Theme.Radius.card))
+        .overlay {
+            if isStale {
+                RoundedRectangle(cornerRadius: Theme.Radius.card)
+                    .strokeBorder(Theme.gold.opacity(0.35), lineWidth: 1)
+            }
+        }
+        .cardShadow()
     }
 
     private var dateLabel: String {
@@ -116,7 +131,7 @@ struct FlightCardView: View {
                     .font(.caption2.weight(.bold))
                     .textCase(.uppercase)
                     .kerning(0.6)
-                    .foregroundStyle(Theme.inkSecondary.opacity(0.8))
+                    .foregroundStyle(Theme.inkSecondary)
             }
         }
     }

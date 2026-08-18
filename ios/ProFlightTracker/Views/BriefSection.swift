@@ -346,7 +346,7 @@ struct BriefSection: View {
 
     private func confidenceColor(_ confidence: String) -> Color {
         switch confidence.uppercased() {
-        case "HIGH": return Theme.green
+        case "HIGH": return Theme.greenText
         case "MEDIUM": return Theme.teal
         default: return Theme.inkSecondary
         }

@@ -241,7 +241,7 @@ struct EdctBanner: View {
                     .foregroundStyle(.white)
                 Text(sublineText)
                     .font(.caption2)
-                    .foregroundStyle(.white.opacity(0.75))
+                    .foregroundStyle(.white.opacity(0.92))
             }
             Spacer(minLength: 0)
         }

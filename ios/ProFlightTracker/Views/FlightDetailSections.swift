@@ -144,7 +144,7 @@ struct ChainSection: View {
                             Text(inboundArrivalText(inbound))
                                 .font(.subheadline.weight(.medium))
                                 .monospacedDigit()
-                                .foregroundStyle(inboundLate ? Theme.gold : Theme.inkSecondary)
+                                .foregroundStyle(inboundLate ? Theme.goldText : Theme.inkSecondary)
                         }
                         .foregroundStyle(Theme.ink)
                     }

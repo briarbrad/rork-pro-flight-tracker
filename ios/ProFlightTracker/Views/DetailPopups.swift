@@ -292,10 +292,11 @@ struct WeatherPopupContent: View {
             } else {
                 HStack(spacing: 6) {
                     LucideIcon(name: "circle-check", size: 13, fallback: "checkmark.circle")
+                        .foregroundStyle(Theme.green)
                     Text("No active FAA programs at \(icao).")
                         .font(.subheadline)
+                        .foregroundStyle(Theme.greenText)
                 }
-                .foregroundStyle(Theme.green)
             }
         }
     }
@@ -432,9 +433,9 @@ struct WeatherPopupContent: View {
 
     private func categoryColor(_ category: String) -> Color {
         switch category.uppercased() {
-        case "VFR": return Theme.green
+        case "VFR": return Theme.greenText
         case "MVFR": return Theme.teal
-        case "IFR": return Theme.gold
+        case "IFR": return Theme.goldText
         case "LIFR": return Theme.red
         default: return Theme.inkSecondary
         }
@@ -480,10 +481,11 @@ struct FaaProgramsPopupContent: View {
             if !record.hasAnyProgram {
                 HStack(spacing: 6) {
                     LucideIcon(name: "circle-check", size: 13, fallback: "checkmark.circle")
+                        .foregroundStyle(Theme.green)
                     Text("No active FAA programs at \(icao) right now.")
                         .font(.subheadline)
+                        .foregroundStyle(Theme.greenText)
                 }
-                .foregroundStyle(Theme.green)
             }
         }
     }

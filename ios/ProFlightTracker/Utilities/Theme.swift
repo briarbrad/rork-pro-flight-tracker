@@ -23,6 +23,9 @@ enum Theme {
         if color == green { return greenText }
         return color
     }
+    /// Muted card surface for stale data — a warm tint that reads as "not
+    /// current" WITHOUT dimming text. Never fade content to signal staleness.
+    static let staleSurface = Color(red: 0.988, green: 0.969, blue: 0.925)
     static let ink = Color(red: 0.122, green: 0.161, blue: 0.2)
     static let inkSecondary = Color(red: 0.373, green: 0.42, blue: 0.463)
     static let hairline = Color(red: 0.882, green: 0.871, blue: 0.843)
