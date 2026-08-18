@@ -96,6 +96,9 @@ struct LiveMapView: View {
                     .font(.subheadline)
                     .foregroundStyle(Theme.inkSecondary)
             } else {
+                // Three numeric metrics share the row at full size; the data
+                // source is descriptive text, not a metric, so it moves to its
+                // own caption line instead of forcing the numbers to shrink.
                 HStack(spacing: 0) {
                     stat(icon: "mountain", label: "Altitude",
                          value: position?.altitudeFt.map { "\(Int($0)) ft" } ?? "—")
@@ -103,8 +106,17 @@ struct LiveMapView: View {
                          value: position?.groundspeedKts.map { "\(Int($0)) kt" } ?? "—")
                     stat(icon: "compass", label: "Heading",
                          value: position?.heading.map { "\(Int($0))°" } ?? "—")
-                    stat(icon: "radio", label: "Source",
-                         value: (position?.source ?? "—").replacingOccurrences(of: "_", with: " "))
+                }
+                if let source = position?.source, !source.isEmpty {
+                    HStack(spacing: 5) {
+                        LucideIcon(name: "radio", size: 11, fallback: "antenna.radiowaves.left.and.right")
+                            .foregroundStyle(Theme.teal)
+                        Text("Source · \(source.replacingOccurrences(of: "_", with: " "))")
+                            .font(.caption2.weight(.medium))
+                            .foregroundStyle(Theme.inkSecondary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
                 }
             }
         }
@@ -118,12 +130,14 @@ struct LiveMapView: View {
         VStack(spacing: 4) {
             LucideIcon(name: icon, size: 15, fallback: "circle")
                 .foregroundStyle(Theme.teal)
+            // Full-size always — numeric values are short ("38000 ft"), and
+            // with three columns each gets enough width; wrap rather than shrink.
             Text(value)
                 .font(.subheadline.weight(.bold))
                 .monospacedDigit()
                 .foregroundStyle(Theme.ink)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
             Text(label)
                 .font(.caption2)
                 .foregroundStyle(Theme.inkSecondary)

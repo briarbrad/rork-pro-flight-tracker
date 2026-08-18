@@ -164,11 +164,13 @@ struct PredictedTimesCard: View {
                     .foregroundStyle(Theme.tealDeep)
             }
         } else {
+            // Never shrink a time to fit: render at full size and wrap onto a
+            // second line ("10:45 PM" / "EDT") when the column is tight.
             Text(entry?.displayTime(fallbackZone: zone) ?? "—")
                 .font(.subheadline.weight(.bold))
                 .monospacedDigit()
-                .minimumScaleFactor(0.7)
-                .lineLimit(1)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
                 .foregroundStyle(entry?.isScheduledOnly == true ? Theme.inkSecondary : Theme.ink)
         }
     }

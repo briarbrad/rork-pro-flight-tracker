@@ -116,22 +116,22 @@ struct FlightHeroCard: View {
                 }
             }
 
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Text(nextEventTimeText)
-                    .font(.system(.title2, design: .rounded).weight(.bold))
-                    .monospacedDigit()
-                    .contentTransition(.numericText())
-                    .animation(.snappy, value: nextEventTimeText)
-                    .foregroundStyle(phase?.isOverdue == true ? Theme.red : Theme.ink)
-                if let countdown = countdownText {
-                    Text(countdown)
-                        .font(.subheadline.weight(.semibold))
-                        .monospacedDigit()
-                        .contentTransition(.numericText())
-                        .animation(.snappy, value: countdown)
-                        .foregroundStyle(phase?.isOverdue == true ? Theme.red : Theme.teal)
+            // The headline time never shrinks: when the countdown text is long
+            // ("awaiting update — last predicted 10:45 PM EDT") the row stacks
+            // vertically instead of scaling the time down.
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    nextEventTimeView
+                    countdownView
+                    deltaChip
                 }
-                deltaChip
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        nextEventTimeView
+                        deltaChip
+                    }
+                    countdownView
+                }
             }
 
             if phase?.isOverdue == true {
@@ -149,6 +149,29 @@ struct FlightHeroCard: View {
                     .font(.caption2)
                     .foregroundStyle(Theme.inkSecondary)
             }
+        }
+    }
+
+    private var nextEventTimeView: some View {
+        Text(nextEventTimeText)
+            .font(.system(.title2, design: .rounded).weight(.bold))
+            .monospacedDigit()
+            .contentTransition(.numericText())
+            .animation(.snappy, value: nextEventTimeText)
+            .foregroundStyle(phase?.isOverdue == true ? Theme.red : Theme.ink)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    @ViewBuilder
+    private var countdownView: some View {
+        if let countdown = countdownText {
+            Text(countdown)
+                .font(.subheadline.weight(.semibold))
+                .monospacedDigit()
+                .contentTransition(.numericText())
+                .animation(.snappy, value: countdown)
+                .foregroundStyle(phase?.isOverdue == true ? Theme.red : Theme.teal)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
