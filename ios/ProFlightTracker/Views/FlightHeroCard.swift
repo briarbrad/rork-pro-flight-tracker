@@ -97,7 +97,7 @@ struct FlightHeroCard: View {
             // Brief verdict is authoritative while fresh; the live
             // status_only verdict may escalate over it, and governs once
             // the brief goes stale.
-            FlightVerdictBadge(brief: brief, live: live)
+            FlightVerdictBadge(brief: brief, live: live, defineOnTap: true)
         }
     }
 

@@ -84,10 +84,28 @@ enum FAAGlossary {
             definition: "Aircraft continuously broadcast their GPS position. This is where the live map position comes from."),
         "ETE": GlossaryEntry(term: "ETE", name: "Estimated Time En Route",
             definition: "The planned flying time from takeoff to landing."),
+
+        // App verdict language — the risk badge and confidence label are
+        // jargon too, and get the same tap-to-define treatment as GDP/EDCT.
+        "WATCH": GlossaryEntry(term: "Watch", name: "Moderate-risk verdict",
+            definition: "Something could still move this flight, but nothing has confirmed it yet — worth keeping an eye on, not yet an active problem. It escalates to High risk when a threat is confirmed (an active FAA program, weather below limits, a broken aircraft rotation) and drops to Low risk when the picture clears."),
+        "LOW RISK": GlossaryEntry(term: "Low risk", name: "Low-risk verdict",
+            definition: "The full analysis checked every source that carries signal at this horizon and found nothing likely to move this flight. Only a complete pre-flight brief can claim this — a quick status check never does, because it can't see weather or FAA programs."),
+        "HIGH RISK": GlossaryEntry(term: "High risk", name: "High-risk verdict",
+            definition: "At least one confirmed factor is expected to disrupt this flight — an active FAA program, weather below operating limits, a broken aircraft rotation, or an official major delay or cancellation. Treat disruption as the base case and check the recommended action."),
+        "CONFIDENCE": GlossaryEntry(term: "Confidence", name: "How current the assessment is",
+            definition: "Confidence measures how close the flight is to departure — NOT how certain any single predicted number is. Near departure, live data (positions, EDCTs, gate times) is authoritative, so confidence reads High. Far out, conditions can still change, so it stays Medium or Low even when everything looks clear. A High-confidence Watch means the assessment is current — not that the outcome is locked in."),
     ]
 
     static func entry(for term: String) -> GlossaryEntry? {
         terms[term.uppercased()]
+    }
+
+    /// glossary:/// deep link for a term — tappable chips and labels route
+    /// through the same `glossaryLinkHandler` as dotted-underline prose.
+    static func url(for term: String) -> URL? {
+        let encoded = term.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? term
+        return URL(string: "glossary:///\(encoded)")
     }
 
     // MARK: - Tappable jargon (dotted underline + glossary:// links)

@@ -9,6 +9,7 @@ import SwiftUI
 /// the app, and its excluded sources also mute matching live signals/alerts.
 struct BriefSection: View {
     @Environment(AppStore.self) private var store
+    @Environment(\.openURL) private var openURL
     let flight: TrackedFlight
 
     @State private var runError: String?
@@ -122,11 +123,11 @@ struct BriefSection: View {
 
             horizonRow(brief)
 
-            if let basis = brief.confidenceBasis, brief.isNeutral {
-                Text(basis)
-                    .font(.caption)
-                    .foregroundStyle(Theme.inkSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
+            // The server's own "why this confidence" string — shown in EVERY
+            // state (was neutral-only). A real Watch/High verdict at High
+            // confidence is exactly when users ask "high confidence in what?"
+            if let basis = brief.confidenceBasis {
+                confidenceBasisRow(basis)
             }
 
             // The screen's "action" slot: the server's top ACTION-severity
@@ -188,19 +189,60 @@ struct BriefSection: View {
         }()
 
         return HStack(spacing: 10) {
-            StatusChip(text: badgeText, icon: badgeIcon, tone: badgeTone)
+            // Verdict words are jargon too: "Watch", "Low risk", and "High
+            // risk" open their glossary definitions like GDP/EDCT do.
+            if !neutral, let level = brief.riskLevel {
+                Button {
+                    Haptics.tap()
+                    if let url = FAAGlossary.url(for: level.label) { openURL(url) }
+                } label: {
+                    StatusChip(text: badgeText, icon: badgeIcon, tone: badgeTone)
+                }
+                .buttonStyle(.plain)
+            } else {
+                StatusChip(text: badgeText, icon: badgeIcon, tone: badgeTone)
+            }
 
             Spacer()
 
             if let confidence = brief.confidence {
-                VStack(alignment: .trailing, spacing: 1) {
-                    Text("Confidence")
-                        .font(.caption2)
-                        .foregroundStyle(Theme.inkSecondary)
-                    Text(confidence.capitalized)
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(confidenceColor(confidence))
+                Button {
+                    Haptics.tap()
+                    if let url = FAAGlossary.url(for: "CONFIDENCE") { openURL(url) }
+                } label: {
+                    VStack(alignment: .trailing, spacing: 1) {
+                        HStack(spacing: 3) {
+                            Text("Confidence")
+                                .font(.caption2)
+                                .foregroundStyle(Theme.inkSecondary)
+                            LucideIcon(name: "info", size: 10, fallback: "info.circle")
+                                .foregroundStyle(Theme.teal)
+                        }
+                        Text(confidence.capitalized)
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(confidenceColor(confidence))
+                    }
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Confidence: \(confidence.capitalized). Tap for what confidence means.")
+            }
+        }
+    }
+
+    /// Server basis string plus the one clarification users misread most:
+    /// confidence tracks the horizon (how close to departure the brief ran),
+    /// not certainty in any specific predicted number.
+    private func confidenceBasisRow(_ basis: String) -> some View {
+        HStack(alignment: .top, spacing: 6) {
+            LucideIcon(name: "gauge", size: 12, fallback: "gauge")
+                .foregroundStyle(Theme.inkSecondary)
+                .padding(.top, 2)
+            VStack(alignment: .leading, spacing: 2) {
+                GlossaryText(text: basis, font: .caption, color: Theme.inkSecondary)
+                Text("Confidence reflects how close to departure this ran — not certainty in the exact numbers.")
+                    .font(.caption2.italic())
+                    .foregroundStyle(Theme.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }

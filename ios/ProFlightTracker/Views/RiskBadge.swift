@@ -28,13 +28,20 @@ struct RiskBadge: View {
 struct FlightVerdictBadge: View {
     let brief: StoredBrief?
     let live: StoredLive?
+    /// When true (flight detail screen), tapping the verdict chip opens the
+    /// glossary definition of "Watch" / "Low risk" / "High risk" — same
+    /// mechanism as tapping GDP or EDCT in prose. Off by default so list
+    /// rows inside NavigationLinks keep their whole-row tap.
+    var defineOnTap: Bool = false
+
+    @Environment(\.openURL) private var openURL
 
     var body: some View {
         if let brief {
             if let liveLevel = live?.riskLevel, overridesBrief(brief, liveLevel: liveLevel) {
                 livePill(liveLevel)
             } else {
-                BriefVerdictBadge(brief: brief)
+                BriefVerdictBadge(brief: brief, defineOnTap: defineOnTap)
             }
         } else if let liveLevel = live?.riskLevel {
             livePill(liveLevel)
@@ -57,7 +64,8 @@ struct FlightVerdictBadge: View {
     private func livePill(_ level: RiskLevel) -> some View {
         if level.rank > RiskLevel.low.rank {
             VStack(alignment: .trailing, spacing: 2) {
-                StatusChip(text: level.label, icon: level.lucideIcon, tone: .from(level))
+                definableChip(text: level.label, icon: level.lucideIcon,
+                              tone: .from(level), term: level.label)
 
                 Text("Live status")
                     .font(.caption2.weight(.bold))
@@ -77,6 +85,22 @@ struct FlightVerdictBadge: View {
             }
         }
     }
+
+    @ViewBuilder
+    private func definableChip(text: String, icon: String, tone: ChipTone,
+                               term: String) -> some View {
+        if defineOnTap, FAAGlossary.entry(for: term) != nil {
+            Button {
+                Haptics.tap()
+                if let url = FAAGlossary.url(for: term) { openURL(url) }
+            } label: {
+                StatusChip(text: text, icon: icon, tone: tone)
+            }
+            .buttonStyle(.plain)
+        } else {
+            StatusChip(text: text, icon: icon, tone: tone)
+        }
+    }
 }
 
 /// The brief-driven verdict pill. Neutral (gray) for too-early /
@@ -84,6 +108,10 @@ struct FlightVerdictBadge: View {
 /// "all clear".
 struct BriefVerdictBadge: View {
     let brief: StoredBrief
+    /// See `FlightVerdictBadge.defineOnTap`.
+    var defineOnTap: Bool = false
+
+    @Environment(\.openURL) private var openURL
 
     var body: some View {
         let tone: ChipTone = brief.isNeutral
@@ -97,15 +125,52 @@ struct BriefVerdictBadge: View {
         }()
 
         VStack(alignment: .trailing, spacing: 2) {
-            StatusChip(text: text, icon: icon, tone: tone)
+            // Neutral pills ("Too early", "No signal yet") have no glossary
+            // entry — only real verdict words become tappable definitions.
+            if defineOnTap, !brief.isNeutral, let level = brief.riskLevel,
+               FAAGlossary.entry(for: level.label) != nil {
+                Button {
+                    Haptics.tap()
+                    if let url = FAAGlossary.url(for: level.label) { openURL(url) }
+                } label: {
+                    StatusChip(text: text, icon: icon, tone: tone)
+                }
+                .buttonStyle(.plain)
+            } else {
+                StatusChip(text: text, icon: icon, tone: tone)
+            }
 
             if let confidence = brief.confidence {
-                Text("\(confidence.capitalized) confidence")
-                    .font(.caption2.weight(.bold))
-                    .textCase(.uppercase)
-                    .kerning(0.6)
-                    .foregroundStyle(Theme.inkSecondary)
+                confidenceLine(confidence)
             }
+        }
+    }
+
+    /// "High confidence" is the most-misread label in the app — on the
+    /// detail screen it taps through to the glossary entry that says plainly:
+    /// confidence tracks the departure horizon, not certainty in the numbers.
+    @ViewBuilder
+    private func confidenceLine(_ confidence: String) -> some View {
+        let label = Text("\(confidence.capitalized) confidence")
+            .font(.caption2.weight(.bold))
+            .textCase(.uppercase)
+            .kerning(0.6)
+            .foregroundStyle(Theme.inkSecondary)
+        if defineOnTap {
+            Button {
+                Haptics.tap()
+                if let url = FAAGlossary.url(for: "CONFIDENCE") { openURL(url) }
+            } label: {
+                HStack(spacing: 3) {
+                    label
+                    LucideIcon(name: "info", size: 9, fallback: "info.circle")
+                        .foregroundStyle(Theme.teal)
+                }
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("\(confidence.capitalized) confidence. Tap for what confidence means.")
+        } else {
+            label
         }
     }
 }
