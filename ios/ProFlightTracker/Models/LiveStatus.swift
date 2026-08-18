@@ -54,7 +54,7 @@ nonisolated struct LiveEdctCache: Codable, Hashable, Sendable {
 }
 
 /// Persisted essence of the last /api/flight/live pull — the LIVE LAYER.
-/// PhaseCard and PredictedTimesCard render from this on every refresh; the
+/// The hero card and its trip timeline render from this on every refresh; the
 /// stored brief is enrichment only (EDCT context, forecast windows, effects,
 /// verdict narrative) and loses to this layer wherever they disagree.
 nonisolated struct StoredLive: Codable, Hashable, Sendable {

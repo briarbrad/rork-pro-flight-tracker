@@ -2,8 +2,8 @@ import SwiftUI
 
 /// Phase-adaptive flight report, organised as three layers so the screen
 /// reads "answer, then why, then evidence" instead of a flat card stack:
-/// 1. ANSWER — hero status card, plus the action-critical facts that belong
-///    with it (EDCT slot, predicted times).
+/// 1. ANSWER — hero status card (which owns the unified trip timeline —
+///    ALL milestone timing renders there), plus the EDCT slot when present.
 /// 2. WHY / ACTION — the brief verdict with its effects[] explanation and
 ///    promoted recommended action, fallback signals, and the forecast
 ///    windows that can move the verdict.
@@ -207,10 +207,10 @@ struct FlightDetailView: View {
 
     @ViewBuilder
     private var preFlightLayout: some View {
-        // 1 · ANSWER — the status at a glance plus the numbers behind it.
+        // 1 · ANSWER — the status at a glance; the hero's trip timeline is
+        // the one place all milestone timing renders.
         heroCard
         edctBannerView
-        predictedTimesCard
 
         // 2 · WHY / ACTION — what's driving the verdict and what to do.
         BriefSection(flight: flight)
@@ -245,7 +245,6 @@ struct FlightDetailView: View {
         heroCard
         mapSection(embedded: false)
         edctBannerView
-        predictedTimesCard
 
         // 2 · WHY / ACTION.
         BriefSection(flight: flight)
@@ -263,8 +262,8 @@ struct FlightDetailView: View {
 
     @ViewBuilder
     private var closedLayout: some View {
-        // PredictedTimesCard is suppressed entirely here — history is never
-        // restated as prediction.
+        // The trip timeline (in the hero) is suppressed entirely here —
+        // history is never restated as prediction.
         FlightClosureCard(leg: leg,
                           phase: truthPhase,
                           zones: zones,
@@ -301,29 +300,6 @@ struct FlightDetailView: View {
         if let edct = live?.predictedTimes?.edct ?? brief?.predictedTimes?.edct,
            edct.edct != nil {
             EdctBanner(edct: edct, originZone: zones.origin)
-        }
-    }
-
-    /// Server-predicted times — live layer wins on every refresh; the brief
-    /// only feeds this before the first live pull.
-    @ViewBuilder
-    private var predictedTimesCard: some View {
-        if let live, let times = live.predictedTimes {
-            PredictedTimesCard(times: times,
-                               timezones: live.timezones ?? brief?.timezones,
-                               zones: zones,
-                               explainer: DeltaExplainer(times: times,
-                                                         effects: live.effects ?? brief?.effects),
-                               isStale: live.isStale, runAt: live.fetchedAt,
-                               staleVerb: "refresh") {
-                Task { await store.refresh(flight) }
-            }
-        } else if let brief, let times = brief.predictedTimes {
-            PredictedTimesCard(times: times, timezones: brief.timezones, zones: zones,
-                               explainer: DeltaExplainer(times: times, effects: brief.effects),
-                               isStale: brief.isStale, runAt: brief.runAt) {
-                Task { try? await store.runBrief(for: flight) }
-            }
         }
     }
 

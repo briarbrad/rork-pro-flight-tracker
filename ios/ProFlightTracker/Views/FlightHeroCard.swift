@@ -3,10 +3,11 @@ import SwiftUI
 /// The ONE status card at the top of the flight screen — replaces the old
 /// header / phase-card / verdict-badge competition where status appeared four
 /// different ways. Reads from the freshest phase layer (the single source of
-/// truth): route + gates, the phase pill, the next event and its predicted
-/// time ("Landing · ~8:43 AM"), delta vs schedule, and the flight-level
-/// verdict badge. The raw airline status string is a small subtitle, never a
-/// headline.
+/// truth): route, the phase pill, the next event and its predicted time
+/// ("Landing · ~8:43 AM"), the flight-level verdict badge, and the unified
+/// trip timeline — the single place ALL milestone timing (scheduled /
+/// estimated / actual, deltas, gates) renders. The raw airline status string
+/// is a small subtitle, never a headline.
 struct FlightHeroCard: View {
     let leg: AeroFlight?
     /// Truth phase: live layer → brief (before the first live pull) →
@@ -46,7 +47,7 @@ struct FlightHeroCard: View {
 
             Divider().overlay(Theme.hairline)
 
-            timeColumns
+            timeline
 
             // Taxi assessment — whether this wait is abnormal for THIS
             // airport. Summary is server-written, rendered verbatim.
@@ -199,88 +200,29 @@ struct FlightHeroCard: View {
         }
     }
 
-    // MARK: - Time columns (departure origin-local, arrival destination-local)
+    // MARK: - Unified trip timeline (the ONE timing display)
 
-    private var timeColumns: some View {
-        HStack(alignment: .top) {
-            timeColumn(title: leg?.originDisplay ?? "DEP",
-                       gate: gateText(leg?.gateOrigin, leg?.terminalOrigin),
-                       scheduled: leg?.scheduledOut,
-                       estimated: leg?.estimatedOut,
-                       actual: leg?.actualOut,
-                       zone: zones.origin,
-                       alignment: .leading)
-            Spacer()
-            VStack(spacing: 4) {
-                LucideIcon(name: "plane", size: 18, fallback: "airplane")
-                    .foregroundStyle(Theme.teal)
-                if let progress = leg?.progressPercent, progress > 0 {
-                    Text("\(Int(progress))%")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(Theme.teal)
-                }
-                if let tail = leg?.registration {
-                    Text(tail)
-                        .font(.caption2)
-                        .foregroundStyle(Theme.inkSecondary)
-                }
-            }
-            Spacer()
-            timeColumn(title: leg?.destDisplay ?? "ARR",
-                       gate: gateText(leg?.gateDestination, leg?.terminalDestination),
-                       scheduled: leg?.scheduledIn,
-                       estimated: leg?.estimatedIn,
-                       actual: leg?.actualIn,
-                       zone: zones.destination,
-                       alignment: .trailing)
-        }
+    /// Server predicted times: live layer wins on every refresh; the brief
+    /// only feeds this before the first live pull.
+    private var timelineTimes: BriefPredictedTimes? {
+        live?.predictedTimes ?? brief?.predictedTimes
     }
 
-    private func timeColumn(title: String, gate: String?, scheduled: String?,
-                            estimated: String?, actual: String?, zone: TimeZone?,
-                            alignment: HorizontalAlignment) -> some View {
-        let effective = actual ?? estimated
-        let shown = effective ?? scheduled
-        return VStack(alignment: alignment, spacing: 3) {
-            Text(title)
-                .font(.system(.title2, design: .rounded).weight(.bold))
-                .foregroundStyle(Theme.ink)
-            if let gate {
-                Text(gate)
-                    .font(.caption)
-                    .foregroundStyle(Theme.inkSecondary)
-            }
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Text(TimeFmt.clock(shown, zone: zone))
-                    .font(.headline.weight(.semibold))
-                    .monospacedDigit()
-                    .contentTransition(.numericText())
-                    .animation(.snappy, value: shown)
-                    .foregroundStyle(SlipSeverity.of(scheduled: scheduled, effective: effective)
-                        .textColor(default: Theme.ink))
-                if let label = TimeFmt.zoneLabel(zone, atISO: shown) {
-                    Text(label)
-                        .font(.caption2.weight(.bold))
-                        .textCase(.uppercase)
-                        .kerning(0.6)
-                        .foregroundStyle(Theme.inkSecondary)
-                }
-            }
-            // An arrival on the next local day is a fact worth stating outright.
-            if let dayLabel = crossesDayLabel(shown, zone: zone) {
-                Text(dayLabel)
-                    .font(.caption2.weight(.medium))
-                    .foregroundStyle(Theme.teal)
-            }
-            if let effective, let sched = scheduled,
-               TimeFmt.parseISO(effective) != TimeFmt.parseISO(sched) {
-                Text("Sched \(TimeFmt.clock(sched, zone: zone))")
-                    .font(.caption2)
-                    .monospacedDigit()
-                    .strikethrough()
-                    .foregroundStyle(Theme.inkSecondary)
-            }
-        }
+    private var timeline: some View {
+        TripTimelineView(leg: leg,
+                         times: timelineTimes,
+                         phase: phase,
+                         zones: zones,
+                         timezones: live?.timezones ?? brief?.timezones,
+                         explainer: timelineExplainer)
+    }
+
+    /// One explainer instance drives the timeline's delta chips AND its
+    /// inline explanation, so the two can never disagree.
+    private var timelineExplainer: DeltaExplainer? {
+        guard let times = timelineTimes else { return nil }
+        let effects = live != nil ? (live?.effects ?? brief?.effects) : brief?.effects
+        return DeltaExplainer(times: times, effects: effects)
     }
 
     // MARK: - Taxi assessment
@@ -404,27 +346,6 @@ struct FlightHeroCard: View {
     }
 
     // MARK: - Small helpers
-
-    private func gateText(_ gate: String?, _ terminal: String?) -> String? {
-        switch (gate, terminal) {
-        case let (gate?, terminal?): return "T\(terminal) · Gate \(gate)"
-        case let (gate?, nil): return "Gate \(gate)"
-        case let (nil, terminal?): return "Terminal \(terminal)"
-        default: return nil
-        }
-    }
-
-    /// "Tue Aug 18" when this time falls on a different local day than the
-    /// origin's departure day — the overnight-arrival case.
-    private func crossesDayLabel(_ iso: String?, zone: TimeZone?) -> String? {
-        let departure = leg?.actualOut ?? leg?.estimatedOut ?? leg?.scheduledOut
-        guard iso != departure,
-              TimeFmt.crossesLocalDay(iso, zone: zone,
-                                      reference: departure, referenceZone: zones.origin) else {
-            return nil
-        }
-        return TimeFmt.weekdayDate(iso, zone: zone)
-    }
 
     private func durationText(_ minutes: Int) -> String {
         if minutes < 60 { return "\(minutes) min" }

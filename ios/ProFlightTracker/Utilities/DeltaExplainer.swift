@@ -17,7 +17,7 @@ nonisolated enum DeltaSignificance {
 
 /// Compares predicted deltas against the brief's uncertainty band and names
 /// the active cause (if the brief identified one). One instance serves both
-/// the chip styling in the Predicted Times card and the one-line inline
+/// the delta-chip styling in the trip timeline and the one-line inline
 /// explanation beneath it, so the two can never disagree.
 nonisolated struct DeltaExplainer {
     /// The "±N min at this horizon" band the brief itself stated. Nil when
@@ -69,8 +69,8 @@ nonisolated struct DeltaExplainer {
         return deltas.max()
     }
 
-    /// One plain-English line for beneath the Predicted Times card whenever a
-    /// column shows a late delta. Nil when everything is on time or early.
+    /// One plain-English line for beneath the trip timeline whenever a
+    /// milestone shows a late delta. Nil when everything is on time or early.
     func explanationLine(for times: BriefPredictedTimes) -> String? {
         guard let delta = maxLateDelta(in: times) else { return nil }
         let bandText = uncertaintyMinutes.map { "±\($0) min" }
