@@ -1,74 +1,47 @@
 import Foundation
 import Observation
 
-/// Central observable store: watchlist, snapshots, alerts, refresh pipeline.
-/// Persists lightweight state in UserDefaults so the app renders instantly.
+/// Slim composition root: wires the data layer (FlightRepository) to the
+/// refresh pipeline, brief runs, and alert generation. Owns only in-flight
+/// operation state; every persisted byte lives in the repository's
+/// versioned, atomic file store.
 @Observable
 final class AppStore {
-    private enum Keys {
-        static let flights = "pft.flights.v1"
-        static let snapshots = "pft.snapshots.v1"
-        static let alerts = "pft.alerts.v1"
-        static let pushToken = "pft.pushToken.v1"
-    }
+    let repository: FlightRepository
 
-    var flights: [TrackedFlight] = []
-    var snapshots: [String: FlightSnapshot] = [:]
-    var alerts: [FlightAlert] = []
     var refreshing: Set<String> = []
     /// Flight ids with a brief request in flight (strictly user-initiated).
     var briefing: Set<String> = []
     /// Flight ids whose AI narrative is still being written.
     var narrativePending: Set<String> = []
 
-    /// Placeholder token registered with the engine's tracking service.
-    /// Replaced by a real APNs/Expo token when the app ships to devices.
-    let pushToken: String
-
-    private let defaults = UserDefaults.standard
-
-    init() {
-        if let token = defaults.string(forKey: Keys.pushToken) {
-            pushToken = token
-        } else {
-            let token = "rork-ios-preview-\(UUID().uuidString.lowercased())"
-            defaults.set(token, forKey: Keys.pushToken)
-            pushToken = token
-        }
-        flights = load([TrackedFlight].self, key: Keys.flights) ?? []
-        snapshots = load([String: FlightSnapshot].self, key: Keys.snapshots) ?? [:]
-        alerts = load([FlightAlert].self, key: Keys.alerts) ?? []
+    init(repository: FlightRepository = FlightRepository()) {
+        self.repository = repository
     }
 
-    // MARK: - Derived
+    // MARK: - Repository forwards
+    // Existing views read these through the store; they observe the
+    // repository's own @Observable properties underneath.
 
-    var sortedFlights: [TrackedFlight] {
-        flights.sorted { lhs, rhs in
-            let lhsDate = TimeFmt.parseISO(snapshots[lhs.id]?.flight?.scheduledOut) ?? .distantFuture
-            let rhsDate = TimeFmt.parseISO(snapshots[rhs.id]?.flight?.scheduledOut) ?? .distantFuture
-            if lhsDate != rhsDate { return lhsDate < rhsDate }
-            return lhs.createdAt < rhs.createdAt
-        }
-    }
+    var flights: [TrackedFlight] { repository.flights }
 
-    /// Tab badge counts only unread DETERIORATIONS — "eased/improved" news
-    /// sits in the drawer without demanding attention.
-    var unreadAlertCount: Int { alerts.filter { !$0.isRead && !$0.isImprovement }.count }
+    var snapshots: [String: FlightSnapshot] { repository.snapshots }
 
-    func alerts(for flightKey: String) -> [FlightAlert] {
-        alerts.filter { $0.flightKey == flightKey }.sorted { $0.updatedAt > $1.updatedAt }
-    }
+    var alerts: [FlightAlert] { repository.alerts }
 
-    func trackedFlight(forKey key: String) -> TrackedFlight? {
-        flights.first { $0.id == key }
-    }
+    var pushToken: String { repository.pushToken }
 
-    func markAlertRead(_ alert: FlightAlert) {
-        guard let index = alerts.firstIndex(where: { $0.id == alert.id }),
-              !alerts[index].isRead else { return }
-        alerts[index].isRead = true
-        persist()
-    }
+    var sortedFlights: [TrackedFlight] { repository.sortedFlights }
+
+    var unreadAlertCount: Int { repository.unreadAlertCount }
+
+    func alerts(for flightKey: String) -> [FlightAlert] { repository.alerts(for: flightKey) }
+
+    func trackedFlight(forKey key: String) -> TrackedFlight? { repository.trackedFlight(forKey: key) }
+
+    func markAlertRead(_ alert: FlightAlert) { repository.markAlertRead(alert) }
+
+    func markAllAlertsRead() { repository.markAllAlertsRead() }
 
     // MARK: - Watchlist management
 
@@ -96,11 +69,9 @@ final class AppStore {
         NotificationService.requestAuthorizationIfNeeded()
 
         let tracked = TrackedFlight(ident: cleaned, date: dateString, intervalMinutes: intervalMinutes)
-        flights.append(tracked)
         var snapshot = FlightSnapshot()
         snapshot.flight = pickBestLeg(status.data?.flights) ?? found
-        snapshots[tracked.id] = snapshot
-        persist()
+        repository.add(tracked, snapshot: snapshot)
 
         // Register with the engine's tracker (best effort — server pushes on risk change).
         let token = pushToken
@@ -113,9 +84,7 @@ final class AppStore {
     }
 
     func remove(_ flight: TrackedFlight) {
-        flights.removeAll { $0.id == flight.id }
-        snapshots[flight.id] = nil
-        persist()
+        repository.remove(flight.id)
         Task.detached {
             try? await API.stopTracking(flight: flight.ident, date: flight.date)
         }
@@ -261,8 +230,8 @@ final class AppStore {
             snapshot.brief = latest
             reconcileBrief(&snapshot)
         }
-        snapshots[flight.id] = snapshot
-        persist()
+        repository.snapshots[flight.id] = snapshot
+        repository.saveSnapshot(for: flight.id)
     }
 
     /// Reconciles the stored brief with the freshest phase truth — the
@@ -317,8 +286,8 @@ final class AppStore {
         // Re-run the signal engine immediately so sources the brief excluded
         // stop driving signals, alerts, and the risk color.
         applyAssessment(for: flight, snapshot: &snapshot)
-        snapshots[flight.id] = snapshot
-        persist()
+        repository.snapshots[flight.id] = snapshot
+        repository.saveSnapshot(for: flight.id)
 
         if let payload = envelope.llmPayload {
             let flightId = flight.id
@@ -326,13 +295,13 @@ final class AppStore {
             Task {
                 do {
                     let text = try await NarrativeService.narrative(for: payload)
-                    self.snapshots[flightId]?.brief?.narrative = text
+                    self.repository.snapshots[flightId]?.brief?.narrative = text
                 } catch {
                     print("[Store] narrative for \(flightId) failed: \(error.localizedDescription)")
-                    self.snapshots[flightId]?.brief?.narrativeFailed = true
+                    self.repository.snapshots[flightId]?.brief?.narrativeFailed = true
                 }
                 self.narrativePending.remove(flightId)
-                self.persist()
+                self.repository.saveSnapshot(for: flightId)
             }
         }
     }
@@ -457,11 +426,12 @@ final class AppStore {
 
         var posted: [FlightAlert] = []
         for candidate in candidates {
-            if let stored = upsertAlert(candidate) { posted.append(stored) }
+            if let stored = repository.upsertAlert(candidate) { posted.append(stored) }
         }
 
         if !posted.isEmpty {
-            if alerts.count > 300 { alerts = Array(alerts.prefix(300)) }
+            repository.trimAlerts()
+            repository.saveAlerts()
             Haptics.warning()
             // Reach the closed-in-pocket phone too: local notifications,
             // grouped per flight, severity-mapped. Improvements never post.
@@ -471,56 +441,4 @@ final class AppStore {
         }
     }
 
-    /// Inserts a new alert, or — when an alert for the same underlying event
-    /// (flightKey + dedupKey) already exists — updates it in place: fresh
-    /// content, bumped `updatedAt`, back to unread, moved to the top.
-    /// Returns nil when nothing materially changed (no re-notify).
-    @discardableResult
-    private func upsertAlert(_ candidate: FlightAlert) -> FlightAlert? {
-        guard let index = alerts.firstIndex(where: {
-            $0.flightKey == candidate.flightKey && $0.dedupKey == candidate.dedupKey
-        }) else {
-            alerts.insert(candidate, at: 0)
-            return candidate
-        }
-        var existing = alerts[index]
-        guard existing.title != candidate.title
-            || existing.message != candidate.message
-            || existing.level != candidate.level else { return nil }
-        existing.title = candidate.title
-        existing.message = candidate.message
-        existing.level = candidate.level
-        existing.icon = candidate.icon
-        existing.isImprovement = candidate.isImprovement
-        existing.changeNote = candidate.changeNote ?? existing.changeNote
-        existing.updatedAt = Date()
-        existing.isRead = false
-        alerts.remove(at: index)
-        alerts.insert(existing, at: 0)
-        return existing
-    }
-
-    func markAllAlertsRead() {
-        for index in alerts.indices { alerts[index].isRead = true }
-        persist()
-    }
-
-    // MARK: - Persistence
-
-    private func persist() {
-        save(flights, key: Keys.flights)
-        save(snapshots, key: Keys.snapshots)
-        save(alerts, key: Keys.alerts)
-    }
-
-    private func save<T: Encodable>(_ value: T, key: String) {
-        if let data = try? JSONEncoder().encode(value) {
-            defaults.set(data, forKey: key)
-        }
-    }
-
-    private func load<T: Decodable>(_ type: T.Type, key: String) -> T? {
-        guard let data = defaults.data(forKey: key) else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
 }
