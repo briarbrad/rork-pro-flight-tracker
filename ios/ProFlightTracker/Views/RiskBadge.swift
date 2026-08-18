@@ -20,9 +20,11 @@ struct RiskBadge: View {
 /// the brief is authoritative for weather/program risk while fresh — the
 /// live status_only verdict (cancellations, diversions, slips, EDCTs) may
 /// only ESCALATE over it, never soften it. Once the brief goes stale, the
-/// live verdict governs. With no brief at all, only an elevated live verdict
-/// earns a pill — a status-only LOW is "nothing visible in status data",
-/// not "all clear", and must not wear a reassuring badge.
+/// live verdict governs. A status-only LOW is "nothing visible in status
+/// data", not "all clear": it NEVER wears the reassuring "Low risk" chip —
+/// only the full brief analysis may claim genuinely low risk. Instead it
+/// renders as a neutral, clearly informational "Status only / analysis
+/// pending" pill.
 struct FlightVerdictBadge: View {
     let brief: StoredBrief?
     let live: StoredLive?
@@ -34,7 +36,7 @@ struct FlightVerdictBadge: View {
             } else {
                 BriefVerdictBadge(brief: brief)
             }
-        } else if let liveLevel = live?.riskLevel, liveLevel.rank > RiskLevel.low.rank {
+        } else if let liveLevel = live?.riskLevel {
             livePill(liveLevel)
         }
     }
@@ -47,15 +49,32 @@ struct FlightVerdictBadge: View {
         return liveLevel.rank != briefRank
     }
 
+    /// Status-only verdicts see cancellations, diversions, slips, and EDCTs
+    /// — but no weather or FAA-program analysis. An elevated verdict is a
+    /// real warning and gets its severity chip; a LOW one is incomplete data,
+    /// so it renders neutral and informational, never as "Low risk".
+    @ViewBuilder
     private func livePill(_ level: RiskLevel) -> some View {
-        VStack(alignment: .trailing, spacing: 2) {
-            StatusChip(text: level.label, icon: level.lucideIcon, tone: .from(level))
+        if level.rank > RiskLevel.low.rank {
+            VStack(alignment: .trailing, spacing: 2) {
+                StatusChip(text: level.label, icon: level.lucideIcon, tone: .from(level))
 
-            Text("Live status")
-                .font(.caption2.weight(.bold))
-                .textCase(.uppercase)
-                .kerning(0.6)
-                .foregroundStyle(Theme.inkSecondary)
+                Text("Live status")
+                    .font(.caption2.weight(.bold))
+                    .textCase(.uppercase)
+                    .kerning(0.6)
+                    .foregroundStyle(Theme.inkSecondary)
+            }
+        } else {
+            VStack(alignment: .trailing, spacing: 2) {
+                StatusChip(text: "Status only", icon: "hourglass", tone: .neutral)
+
+                Text("Analysis pending")
+                    .font(.caption2.weight(.bold))
+                    .textCase(.uppercase)
+                    .kerning(0.6)
+                    .foregroundStyle(Theme.inkSecondary)
+            }
         }
     }
 }
