@@ -62,6 +62,11 @@ nonisolated struct StoredLive: Codable, Hashable, Sendable {
     var predictedTimes: BriefPredictedTimes?
     var taxi: BriefTaxi?
     var timezones: BriefTimezones?
+    /// Status-scope cause → effect list from the cheap refresh. Kept so the
+    /// flight screen can keep showing CURRENT evidence even after the richer
+    /// brief goes stale — optional, so pre-existing persisted snapshots
+    /// (without this field) still decode.
+    var effects: [BriefEffect]?
     /// verdict.departure_risk at scope "status_only". A LOW here means
     /// "nothing visible in status data", NOT "all clear" — weather and FAA
     /// program risk remain the brief's authority.
@@ -80,6 +85,7 @@ nonisolated struct StoredLive: Codable, Hashable, Sendable {
         predictedTimes = envelope.predictedTimes
         taxi = envelope.taxi
         timezones = envelope.timezones
+        effects = envelope.effects
         risk = envelope.verdict?.departureRisk
         verdictScope = envelope.verdict?.scope
         refreshAfterSeconds = envelope.refreshAfterSeconds

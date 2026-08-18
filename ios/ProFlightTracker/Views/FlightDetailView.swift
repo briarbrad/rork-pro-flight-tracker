@@ -96,6 +96,17 @@ struct FlightDetailView: View {
 
     private var briefHasEffects: Bool { brief?.hasEffects == true }
 
+    /// Current status-scope effects from the cheap live refresh — the
+    /// evidence that stays true even after the brief narrative goes stale.
+    private var liveEffects: [BriefEffect] { live?.effects ?? [] }
+
+    /// A stale brief must never suppress CURRENT live evidence: when the
+    /// narrative is out of date but the live layer observed effects, they
+    /// surface under their own "Since your brief" card.
+    private var showLiveEffectsSection: Bool {
+        brief != nil && brief?.isStale == true && !liveEffects.isEmpty
+    }
+
     private var conditionsTitle: String {
         var names: [String] = []
         if let origin = leg?.originDisplay, origin != "???" { names.append(origin) }
@@ -313,9 +324,15 @@ struct FlightDetailView: View {
     }
 
     /// Once a brief supplies effects[], those replace the client signal list
-    /// as the explanation on this screen.
+    /// as the explanation on this screen — but only while the brief is
+    /// current. A STALE brief's effects never hide live evidence: current
+    /// live-layer effects render under "Since your brief" so the user still
+    /// sees what's true right now.
     @ViewBuilder
     private var signalsSection: some View {
+        if showLiveEffectsSection {
+            liveEffectsCard
+        }
         if !briefHasEffects {
             SignalListSection(title: "Flight status signals",
                               icon: "activity",
@@ -325,6 +342,29 @@ struct FlightDetailView: View {
                 popup = .riskSignal(signal)
             }
         }
+    }
+
+    /// Live-layer effects shown when the brief has gone stale: clearly
+    /// labeled as what the status feed observed AFTER the brief ran, with
+    /// its own freshness caption anchored on the live pull.
+    private var liveEffectsCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionHeader(icon: "activity", title: "Since your brief")
+            Text("Your brief's narrative is out of date, but these effects are from the latest status pull — they reflect the flight right now.")
+                .font(.caption)
+                .foregroundStyle(Theme.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            EffectsList(effects: liveEffects)
+            if let asOf = live?.fetchedAt {
+                FreshnessCaption(asOf: asOf,
+                                 prefix: "Status pulled",
+                                 isStale: live?.isStale ?? false,
+                                 staleHint: "refresh for the current picture.") {
+                    Task { await store.refresh(flight) }
+                }
+            }
+        }
+        .cardStyle()
     }
 
     /// `embedded: true` when rendered inside a CollapsibleSection's card —
