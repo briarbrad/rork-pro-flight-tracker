@@ -129,6 +129,14 @@ struct BriefSection: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
+            // The screen's "action" slot: the server's top ACTION-severity
+            // effect promoted to a highlighted strip, so what to DO never
+            // hides mid-list. Fresh briefs only — a stale brief's advice is
+            // history, not instruction.
+            if let action = recommendedAction(brief) {
+                InlineNotice(style: .warning, message: "Recommended action — \(action)")
+            }
+
             if brief.hasEffects {
                 // Effects[] is the primary explanation — severities computed
                 // server-side (direction-aware), rendered as-is. When a delta
@@ -297,6 +305,16 @@ struct BriefSection: View {
     }
 
     // MARK: - Actions
+
+    /// The server's most urgent finding, verbatim — the client never
+    /// invents advice, it only promotes what the backend already marked
+    /// ACTION-severity.
+    private func recommendedAction(_ brief: StoredBrief) -> String? {
+        guard !brief.isStale,
+              let effect = brief.orderedEffects.first(where: { $0.severityCode == "ACTION" })
+        else { return nil }
+        return effect.effect ?? effect.cause
+    }
 
     private func runBrief() async {
         runError = nil

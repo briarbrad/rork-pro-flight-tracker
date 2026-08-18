@@ -8,6 +8,10 @@ struct OpsSection: View {
     let originIcao: String?
     let destIcao: String?
     var hoursToDeparture: Double? = nil
+    /// True inside the evidence drawer — drops the card shell so the drawer
+    /// and this section read as one surface. Lazy loading is unchanged:
+    /// feeds still only fire when the user expands the deep-dive.
+    var embedded: Bool = false
 
     @State private var isExpanded: Bool = false
     @State private var isLoading: Bool = false
@@ -22,9 +26,9 @@ struct OpsSection: View {
     var body: some View {
         if originIcao != nil || destIcao != nil {
             if HorizonGate.sameDaySourcesCarrySignal(hoursToDeparture: hoursToDeparture) {
-                liveCard
+                if embedded { liveCard } else { liveCard.cardStyle() }
             } else {
-                lockedCard
+                if embedded { lockedCard } else { lockedCard.cardStyle() }
             }
         }
     }
@@ -75,7 +79,6 @@ struct OpsSection: View {
                     pirepBlock
                 }
             }
-            .cardStyle()
     }
 
     /// Shown while departure is beyond the same-day window. No fetches fire.
@@ -100,7 +103,6 @@ struct OpsSection: View {
                 .foregroundStyle(Theme.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .cardStyle()
     }
 
     private var unlockText: String {

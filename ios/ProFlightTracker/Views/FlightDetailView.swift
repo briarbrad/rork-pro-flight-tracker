@@ -1,14 +1,17 @@
 import SwiftUI
 
-/// Phase-adaptive flight report. The screen reads the freshest phase truth
-/// (live layer → brief fallback → milestone-derived guard) and organises
-/// itself around it:
-/// - Pre-flight (>2h out): verdict + predicted departure first; live detail
-///   (aircraft chain, conditions, map) collapsed behind disclosure headers.
-/// - Day-of / in-air: next event first, live map promoted to slot 2,
-///   EDCT above the predicted-times grid, destination conditions next.
-/// - Landed / cancelled: one compact closure card + a collapsed flight
-///   record — history is never restated as prediction.
+/// Phase-adaptive flight report, organised as three layers so the screen
+/// reads "answer, then why, then evidence" instead of a flat card stack:
+/// 1. ANSWER — hero status card, plus the action-critical facts that belong
+///    with it (EDCT slot, predicted times).
+/// 2. WHY / ACTION — the brief verdict with its effects[] explanation and
+///    promoted recommended action, fallback signals, and the forecast
+///    windows that can move the verdict.
+/// 3. EVIDENCE — one collapsed drawer holding the raw source data
+///    (METAR/TAF, FAA programs, SIGMETs, ops feeds) for users who dig in.
+/// Phase still shapes the answer layer (map promoted day-of; landed /
+/// cancelled collapses to a closure card — history is never restated as
+/// prediction).
 struct FlightDetailView: View {
     @Environment(AppStore.self) private var store
     let flight: TrackedFlight
@@ -200,16 +203,21 @@ struct FlightDetailView: View {
         }
     }
 
-    // MARK: - Pre-flight (>2h out): schedule-first, live detail collapsed
+    // MARK: - Pre-flight (>2h out): answer → why → evidence
 
     @ViewBuilder
     private var preFlightLayout: some View {
+        // 1 · ANSWER — the status at a glance plus the numbers behind it.
         heroCard
         edctBannerView
         predictedTimesCard
-        forecastWindows
+
+        // 2 · WHY / ACTION — what's driving the verdict and what to do.
         BriefSection(flight: flight)
         signalsSection
+        forecastWindows
+
+        // Supporting context — this flight's own aircraft, not raw feeds.
         if snapshot?.chain != nil {
             CollapsibleSection(icon: "link", title: "Your aircraft",
                                subtitle: "Inbound leg and turn time") {
@@ -221,42 +229,32 @@ struct FlightDetailView: View {
                 mapSection(embedded: true)
             }
         }
-        if leg?.originIcao != nil || leg?.destIcao != nil {
-            CollapsibleSection(icon: "cloud-sun", title: "Airport conditions",
-                               subtitle: "Reference only at this horizon") {
-                weatherSection(embedded: true)
-                EnrouteHazardsSection(convective: snapshot?.convective,
-                                      internationalSigmets: snapshot?.internationalSigmets,
-                                      embedded: true)
-            }
-        }
-        // Already horizon-gated: locks itself beyond the same-day window.
-        OpsSection(originIcao: leg?.originIcao,
-                   destIcao: leg?.destIcao,
-                   hoursToDeparture: hoursToDeparture)
+
+        // 3 · EVIDENCE — raw source data, collapsed until asked for.
+        evidenceDrawer
         NarrativeSection(flight: flight)
         alertHistory(embedded: false)
     }
 
-    // MARK: - Day-of / in-air: next event first, map promoted
+    // MARK: - Day-of / in-air: map promoted into the answer layer
 
     @ViewBuilder
     private var dayOfLayout: some View {
+        // 1 · ANSWER — live map is part of the at-a-glance picture day-of
+        // (renders only when a position exists).
         heroCard
-        // Live map promoted to slot 2 (renders only when a position exists).
         mapSection(embedded: false)
         edctBannerView
         predictedTimesCard
-        weatherSection(embedded: false)
-        forecastWindows
+
+        // 2 · WHY / ACTION.
         BriefSection(flight: flight)
         signalsSection
-        EnrouteHazardsSection(convective: snapshot?.convective,
-                              internationalSigmets: snapshot?.internationalSigmets)
+        forecastWindows
         chainSection(embedded: false)
-        OpsSection(originIcao: leg?.originIcao,
-                   destIcao: leg?.destIcao,
-                   hoursToDeparture: hoursToDeparture)
+
+        // 3 · EVIDENCE.
+        evidenceDrawer
         NarrativeSection(flight: flight)
         alertHistory(embedded: false)
     }
@@ -380,6 +378,29 @@ struct FlightDetailView: View {
             }
         }
         .cardStyle()
+    }
+
+    /// Layer 3: the evidence drawer. All the raw source data — decoded
+    /// METAR/TAF + FAA program details, SIGMETs/convective hazards, and the
+    /// on-demand ops feeds — lives behind ONE collapsed disclosure instead
+    /// of inline peer cards. Same data, same lazy loading (ops feeds still
+    /// fire only when expanded); only the hierarchy changed.
+    @ViewBuilder
+    private var evidenceDrawer: some View {
+        if leg?.originIcao != nil || leg?.destIcao != nil {
+            CollapsibleSection(icon: "layers", title: "Evidence & source data",
+                               subtitle: "METAR/TAF · FAA programs · SIGMETs · ops feeds") {
+                weatherSection(embedded: true)
+                EnrouteHazardsSection(convective: snapshot?.convective,
+                                      internationalSigmets: snapshot?.internationalSigmets,
+                                      embedded: true)
+                // Already horizon-gated: locks itself beyond same-day.
+                OpsSection(originIcao: leg?.originIcao,
+                           destIcao: leg?.destIcao,
+                           hoursToDeparture: hoursToDeparture,
+                           embedded: true)
+            }
+        }
     }
 
     /// `embedded: true` when rendered inside a CollapsibleSection's card —
