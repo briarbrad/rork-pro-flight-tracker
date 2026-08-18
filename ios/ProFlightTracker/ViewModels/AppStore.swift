@@ -271,10 +271,37 @@ final class AppStore {
 
     // MARK: - Pre-flight brief
 
-    /// Runs /api/brief for one flight (2–4 paid queries — strictly user-
-    /// initiated, never polled) and persists the verdict. The AI narrative is
-    /// written in the background afterwards; the deterministic verdict never
-    /// waits for it.
+    /// Runs the brief automatically the FIRST time a flight's detail screen
+    /// opens, so the user never has to know to tap "Run brief" to get the
+    /// app's own assessment. Same cost as one manual tap (2–4 paid queries +
+    /// one narrative call) — the persisted `autoBriefAttempted` flag is set
+    /// BEFORE the request fires, so this can never repeat on later opens,
+    /// backgrounding, or after a failure. Never a poll.
+    func autoBriefIfNeeded(for flight: TrackedFlight) async {
+        guard let snapshot = snapshots[flight.id] else { return }
+        guard snapshot.brief == nil,
+              snapshot.autoBriefAttempted != true,
+              !briefing.contains(flight.id),
+              // A finished flight has nothing left to brief — don't spend
+              // paid queries on it (manual re-run stays available).
+              !snapshot.isFinal else { return }
+
+        repository.snapshots[flight.id]?.autoBriefAttempted = true
+        repository.saveSnapshot(for: flight.id)
+
+        do {
+            try await runBrief(for: flight)
+        } catch {
+            // Silent by design: the brief card still shows its manual
+            // "Run brief" button, which surfaces errors on tap.
+            print("[Store] auto-brief for \(flight.id) failed: \(error.localizedDescription)")
+        }
+    }
+
+    /// Runs /api/brief for one flight (2–4 paid queries — one user-visible
+    /// screen-open or tap per call, never polled) and persists the verdict.
+    /// The AI narrative is written in the background afterwards; the
+    /// deterministic verdict never waits for it.
     func runBrief(for flight: TrackedFlight) async throws {
         guard !briefing.contains(flight.id) else { return }
         briefing.insert(flight.id)

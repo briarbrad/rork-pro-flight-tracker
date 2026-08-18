@@ -42,6 +42,12 @@ nonisolated struct FlightSnapshot: Codable, Hashable, Sendable {
     /// not HTTP-response receipt — every freshness caption renders from it.
     var lastRefreshed: Date?
     var refreshError: String?
+    /// Set the first time the detail screen auto-runs the brief for this
+    /// flight — marked BEFORE the request fires and persisted, so the
+    /// auto-run happens exactly once per flight even if it fails or the
+    /// user closes the screen mid-run. Manual "Run brief" / "Re-run" stay
+    /// available regardless. Optional so old persisted snapshots decode.
+    var autoBriefAttempted: Bool?
 
     /// The flight is finished (`refresh_after_seconds: null` from the live
     /// endpoint) — nothing can change, so automatic refreshes stop.

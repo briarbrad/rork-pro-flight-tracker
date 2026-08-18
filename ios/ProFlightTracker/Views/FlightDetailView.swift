@@ -200,6 +200,10 @@ struct FlightDetailView: View {
             if snapshot?.autoRefreshDue ?? true {
                 await store.refresh(flight)
             }
+            // First-ever open of this flight: run the brief automatically so
+            // the verdict appears without a tap. Exactly once per flight —
+            // the store persists the attempt, so reopening never refires it.
+            await store.autoBriefIfNeeded(for: flight)
         }
     }
 
