@@ -314,12 +314,15 @@ struct FlightDetailView: View {
             PredictedTimesCard(times: times,
                                timezones: live.timezones ?? brief?.timezones,
                                zones: zones,
+                               explainer: DeltaExplainer(times: times,
+                                                         effects: live.effects ?? brief?.effects),
                                isStale: live.isStale, runAt: live.fetchedAt,
                                staleVerb: "refresh") {
                 Task { await store.refresh(flight) }
             }
         } else if let brief, let times = brief.predictedTimes {
             PredictedTimesCard(times: times, timezones: brief.timezones, zones: zones,
+                               explainer: DeltaExplainer(times: times, effects: brief.effects),
                                isStale: brief.isStale, runAt: brief.runAt) {
                 Task { try? await store.runBrief(for: flight) }
             }

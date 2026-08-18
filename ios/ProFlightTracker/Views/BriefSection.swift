@@ -131,8 +131,13 @@ struct BriefSection: View {
 
             if brief.hasEffects {
                 // Effects[] is the primary explanation — severities computed
-                // server-side (direction-aware), rendered as-is.
-                EffectsList(effects: brief.orderedEffects)
+                // server-side (direction-aware), rendered as-is. When a delta
+                // chip is visible with no identified cause, the empty-state
+                // copy explains the slip instead of contradicting it.
+                EffectsList(effects: brief.orderedEffects,
+                            unexplainedDeltaNote: DeltaExplainer(times: brief.predictedTimes,
+                                                                 effects: brief.effects)
+                                .unexplainedDeltaNote(for: brief.predictedTimes))
             } else {
                 // Older briefs without effects fall back to drivers/branch.
                 if !brief.drivers.isEmpty {
@@ -382,7 +387,10 @@ struct NarrativeSection: View {
 
                 if isExpanded {
                     if let narrative = brief.narrative {
-                        GlossaryText(text: narrative, font: .subheadline, color: Theme.ink)
+                        // Rendered as rich text — the LLM writes ## headers,
+                        // **bold**, and --- dividers that must never appear
+                        // as literal syntax characters on screen.
+                        MarkdownText(markdown: narrative, font: .subheadline, color: Theme.ink)
                     } else if isWriting {
                         Text("Writing narrative…")
                             .font(.caption2)

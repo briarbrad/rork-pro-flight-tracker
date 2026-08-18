@@ -10,6 +10,10 @@ struct PredictedTimesCard: View {
     let times: BriefPredictedTimes
     var timezones: BriefTimezones? = nil
     var zones: FlightZones = .unknown
+    /// Judges each delta against the brief's own uncertainty band and names
+    /// the active cause (if any) — drives both the chip styling and the
+    /// inline explanation so they can never disagree. Nil = legacy behavior.
+    var explainer: DeltaExplainer? = nil
     /// Stale treatment, mirroring the verdict card: dimmed content, "as of"
     /// caption, and a user-initiated affordance. Never auto-refreshes.
     var isStale: Bool = false
@@ -35,6 +39,20 @@ struct PredictedTimesCard: View {
 
             if let expandedSlot, let basis = entry(for: expandedSlot)?.basis {
                 basisReveal(slot: expandedSlot, basis: basis)
+            }
+
+            // Any late delta gets its one-line why RIGHT HERE — the user
+            // should never have to scroll to the narrative to learn whether
+            // a +4 min chip has a cause or is just schedule noise.
+            if let explanation = explainer?.explanationLine(for: times) {
+                HStack(alignment: .top, spacing: 5) {
+                    LucideIcon(name: "circle-help", size: 10, fallback: "questionmark.circle")
+                        .padding(.top, 1)
+                    Text(explanation)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .font(.caption2)
+                .foregroundStyle(Theme.inkSecondary)
             }
 
             if let zoneCaption {
@@ -183,12 +201,21 @@ struct PredictedTimesCard: View {
         if let delay = entry?.delayVsScheduleMin, entry?.isUnknown != true,
            !(entry?.isActual == true && delay <= 0) {
             let late = delay > 0
-            // Late deltas escalate on the shared thresholds — a +50 min slip
-            // reads red here for the same reason it reads red everywhere.
-            let tone: ChipTone = late
-                ? (SlipSeverity.of(minutes: Double(delay)) == .alert ? .alert : .watch)
-                : .ok
-            StatusChip(text: late ? "+\(delay) min" : "on time", tone: tone, size: .mini)
+            // A predicted delta inside the brief's own "±N min at this
+            // horizon" band with no identified cause is noise, not signal —
+            // it reads as a neutral on-time state instead of an amber delay.
+            // Actual (already-happened) times are facts and stay factual.
+            if late, entry?.isActual != true,
+               explainer?.significance(of: delay) == DeltaSignificance.noise {
+                StatusChip(text: "≈ on time", tone: .neutral, size: .mini)
+            } else {
+                // Real late deltas escalate on the shared thresholds — a
+                // +50 min slip reads red here as it does everywhere.
+                let tone: ChipTone = late
+                    ? (SlipSeverity.of(minutes: Double(delay)) == .alert ? .alert : .watch)
+                    : .ok
+                StatusChip(text: late ? "+\(delay) min" : "on time", tone: tone, size: .mini)
+            }
         }
     }
 
@@ -268,6 +295,10 @@ struct EdctBanner: View {
 /// INFO items collapse behind "More context (N)".
 struct EffectsList: View {
     let effects: [BriefEffect]
+    /// Set when a delta chip is visible elsewhere on the screen but the brief
+    /// found no cause for it — the "nothing acting on this flight" copy then
+    /// explicitly accounts for the visible slip instead of contradicting it.
+    var unexplainedDeltaNote: String? = nil
 
     @State private var showInfo: Bool = false
 
@@ -281,9 +312,13 @@ struct EffectsList: View {
                 .foregroundStyle(Theme.ink)
 
             if primary.isEmpty && !info.isEmpty {
-                Text("Nothing is directly acting on this flight — context below.")
+                // "No cause found" is NOT "nothing to worry about" — the
+                // copy says which one this is, and owns any visible delta.
+                Text(unexplainedDeltaNote
+                     ?? "No active cause identified in the sources checked — context below.")
                     .font(.caption)
                     .foregroundStyle(Theme.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             ForEach(Array(primary.enumerated()), id: \.offset) { _, effect in
