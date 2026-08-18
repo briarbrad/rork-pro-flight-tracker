@@ -25,11 +25,11 @@ struct CollapsibleSection<Content: View>: View {
                         .foregroundStyle(Theme.teal)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(title)
-                            .font(.subheadline.weight(.bold))
+                            .font(TypeScale.sectionTitle)
                             .foregroundStyle(Theme.ink)
                         if let subtitle, !isExpanded {
                             Text(subtitle)
-                                .font(.caption2)
+                                .font(TypeScale.caption2)
                                 .foregroundStyle(Theme.inkSecondary)
                                 .lineLimit(1)
                         }

@@ -45,6 +45,7 @@ struct TripTimelineView: View {
     var explainer: DeltaExplainer? = nil
 
     @State private var expandedSlot: TimelineSlot?
+    @State private var showFootnoteDetails = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.sm) {
@@ -168,7 +169,7 @@ struct TripTimelineView: View {
     private func metaLine(_ milestone: Milestone) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
             Text(metaText(milestone))
-                .font(.caption2.weight(.semibold))
+                .font(TypeScale.caption2Strong)
                 .textCase(.uppercase)
                 .kerning(0.4)
                 .foregroundStyle(Theme.inkSecondary)
@@ -199,14 +200,14 @@ struct TripTimelineView: View {
                     StatusChip(text: milestone.entry?.displayTime(fallbackZone: milestone.zone) ?? "—",
                                tone: .info, size: .mini, style: .solid)
                     Text("FAA slot")
-                        .font(.caption2.weight(.bold))
+                        .font(TypeScale.kicker)
                         .textCase(.uppercase)
                         .kerning(0.6)
                         .foregroundStyle(Theme.tealDeep)
                 }
             } else {
                 Text(timeText(milestone))
-                    .font(.headline.weight(.semibold))
+                    .font(TypeScale.time)
                     .monospacedDigit()
                     .contentTransition(.numericText())
                     .animation(.snappy, value: timeText(milestone))
@@ -282,7 +283,7 @@ struct TripTimelineView: View {
         if let effective, let sched = milestone.scheduled,
            TimeFmt.parseISO(effective) != TimeFmt.parseISO(sched) {
             Text("Sched \(TimeFmt.clock(sched, zone: milestone.zone))")
-                .font(.caption2)
+                .font(TypeScale.caption2)
                 .monospacedDigit()
                 .strikethrough()
                 .foregroundStyle(Theme.inkSecondary)
@@ -300,7 +301,7 @@ struct TripTimelineView: View {
                                    reference: departureRef, referenceZone: originZone),
            let dayLabel = TimeFmt.weekdayDate(shown, zone: milestone.zone) {
             Text(dayLabel)
-                .font(.caption2.weight(.medium))
+                .font(TypeScale.caption2Medium)
                 .foregroundStyle(Theme.teal)
         }
     }
@@ -312,7 +313,7 @@ struct TripTimelineView: View {
             HStack(spacing: 5) {
                 LucideIcon(name: "plane", size: 11, fallback: "airplane")
                 Text(progressText(progress))
-                    .font(.caption2.weight(.semibold))
+                    .font(TypeScale.caption2Strong)
                     .monospacedDigit()
             }
             .foregroundStyle(Theme.teal)
@@ -328,7 +329,7 @@ struct TripTimelineView: View {
     private func basisReveal(slot: TimelineSlot, basis: String) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             Text("\(slot.label(isActual: false)) — how this was computed")
-                .font(.caption2.weight(.bold))
+                .font(TypeScale.kicker)
                 .foregroundStyle(Theme.ink)
             GlossaryText(text: basis, font: .caption2, color: Theme.inkSecondary)
         }
@@ -381,6 +382,10 @@ struct TripTimelineView: View {
 
     // MARK: - Footnotes (absorbed from the old Predicted Times card)
 
+    /// Only the decision-relevant line stays always-visible: the delay
+    /// explanation. The timezone note and horizon caveat are reference
+    /// context — collapsed behind "Details" (the same disclosure pattern as
+    /// "More context") so the card reads calm, not busy.
     @ViewBuilder
     private var footnotes: some View {
         // Any late delta gets its one-line why RIGHT HERE — the user should
@@ -393,22 +398,46 @@ struct TripTimelineView: View {
                 Text(explanation)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .font(.caption2)
+            .font(TypeScale.caption2)
             .foregroundStyle(Theme.inkSecondary)
         }
 
+        if zoneCaption != nil || times?.uncertaintyNote != nil {
+            Button {
+                Haptics.tap()
+                withAnimation(.snappy) { showFootnoteDetails.toggle() }
+            } label: {
+                HStack(spacing: 6) {
+                    Text("Details")
+                        .font(TypeScale.caption2Strong)
+                    LucideIcon(name: showFootnoteDetails ? "chevron-up" : "chevron-down",
+                               size: 11, fallback: "chevron.down")
+                }
+                .foregroundStyle(Theme.inkSecondary)
+            }
+            .buttonStyle(.plain)
+
+            if showFootnoteDetails {
+                footnoteDetails
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var footnoteDetails: some View {
         if let zoneCaption {
             HStack(spacing: 5) {
                 LucideIcon(name: "globe", size: 10, fallback: "globe")
                 Text(zoneCaption)
             }
-            .font(.caption2)
+            .font(TypeScale.caption2)
             .foregroundStyle(Theme.inkSecondary)
         }
 
         if let note = times?.uncertaintyNote {
             Text(note)
-                .font(.caption2)
+                .font(TypeScale.caption2)
                 .foregroundStyle(Theme.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }

@@ -28,22 +28,22 @@ struct FlightClosureCard: View {
                 }
                 VStack(alignment: .leading, spacing: 3) {
                     Text("\(leg?.originCity ?? leg?.originDisplay ?? "—") → \(leg?.destCity ?? leg?.destDisplay ?? "—")")
-                        .font(.caption)
+                        .font(TypeScale.caption)
                         .foregroundStyle(Theme.inkSecondary)
                     Text(headline)
-                        .font(.title3.weight(.bold))
+                        .font(TypeScale.title)
                         .monospacedDigit()
                         .foregroundStyle(Theme.ink)
                     if let subline {
                         Text(subline)
-                            .font(.subheadline.weight(.semibold))
+                            .font(TypeScale.bodyStrong)
                             .foregroundStyle(sublineColor)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     // The airline's raw string is a footnote, never a headline.
                     if let status = leg?.status, !status.isEmpty {
                         Text("Airline status · \(status)")
-                            .font(.caption2)
+                            .font(TypeScale.caption2)
                             .foregroundStyle(Theme.inkSecondary)
                     }
                 }
@@ -129,7 +129,7 @@ struct FlightRecordCard: View {
 
             if milestones.allSatisfy({ $0.iso == nil }) {
                 Text("No actual times were reported for this flight.")
-                    .font(.caption)
+                    .font(TypeScale.caption)
                     .foregroundStyle(Theme.inkSecondary)
             } else {
                 ForEach(milestones.filter { $0.iso != nil }, id: \.label) { milestone in
@@ -138,11 +138,11 @@ struct FlightRecordCard: View {
                             .foregroundStyle(Theme.teal)
                             .frame(width: 18)
                         Text(milestone.label)
-                            .font(.caption.weight(.semibold))
+                            .font(TypeScale.captionStrong)
                             .foregroundStyle(Theme.ink)
                         Spacer()
                         Text(TimeFmt.clockWithZone(milestone.iso, zone: milestone.zone))
-                            .font(.caption.weight(.semibold))
+                            .font(TypeScale.captionStrong)
                             .monospacedDigit()
                             .foregroundStyle(Theme.inkSecondary)
                     }
@@ -153,7 +153,7 @@ struct FlightRecordCard: View {
                         LucideIcon(name: "globe", size: 10, fallback: "globe")
                         Text(caption)
                     }
-                    .font(.caption2)
+                    .font(TypeScale.caption2)
                     .foregroundStyle(Theme.inkSecondary)
                 }
             }

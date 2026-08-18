@@ -68,7 +68,7 @@ struct FlightVerdictBadge: View {
                               tone: .from(level), term: level.label)
 
                 Text("Live status")
-                    .font(.caption2.weight(.bold))
+                    .font(TypeScale.kicker)
                     .textCase(.uppercase)
                     .kerning(0.6)
                     .foregroundStyle(Theme.inkSecondary)
@@ -78,7 +78,7 @@ struct FlightVerdictBadge: View {
                 StatusChip(text: "Status only", icon: "hourglass", tone: .neutral)
 
                 Text("Analysis pending")
-                    .font(.caption2.weight(.bold))
+                    .font(TypeScale.kicker)
                     .textCase(.uppercase)
                     .kerning(0.6)
                     .foregroundStyle(Theme.inkSecondary)
@@ -152,7 +152,7 @@ struct BriefVerdictBadge: View {
     @ViewBuilder
     private func confidenceLine(_ confidence: String) -> some View {
         let label = Text("\(confidence.capitalized) confidence")
-            .font(.caption2.weight(.bold))
+            .font(TypeScale.kicker)
             .textCase(.uppercase)
             .kerning(0.6)
             .foregroundStyle(Theme.inkSecondary)

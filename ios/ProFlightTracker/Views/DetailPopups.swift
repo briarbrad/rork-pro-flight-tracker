@@ -137,7 +137,7 @@ struct JargonBubble: View {
                     LucideIcon(name: "book-open", size: 12, fallback: "book")
                         .foregroundStyle(Theme.teal)
                     Text("\(entry.term) — \(entry.name)")
-                        .font(.caption.weight(.bold))
+                        .font(TypeScale.captionBold)
                         .foregroundStyle(Theme.ink)
                     Spacer()
                     Button(action: onClose) {
@@ -147,7 +147,7 @@ struct JargonBubble: View {
                     .accessibilityLabel("Close definition")
                 }
                 Text(entry.definition)
-                    .font(.caption)
+                    .font(TypeScale.caption)
                     .foregroundStyle(Theme.inkSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -237,7 +237,7 @@ struct WeatherPopupContent: View {
                 }
             } else {
                 Text("No current observation available for \(icao).")
-                    .font(.subheadline)
+                    .font(TypeScale.body)
                     .foregroundStyle(Theme.inkSecondary)
             }
 
@@ -285,7 +285,7 @@ struct WeatherPopupContent: View {
                         GlossaryText(text: "A runway or airport closure is in effect, reducing hourly capacity.", font: .subheadline)
                     }
                     Text("Tap a program chip on the weather card for the full FAA details.")
-                        .font(.caption2)
+                        .font(TypeScale.caption2)
                         .foregroundStyle(Theme.inkSecondary)
                 }
             } else {
@@ -293,7 +293,7 @@ struct WeatherPopupContent: View {
                     LucideIcon(name: "circle-check", size: 13, fallback: "checkmark.circle")
                         .foregroundStyle(Theme.green)
                     Text("No active FAA programs at \(icao).")
-                        .font(.subheadline)
+                        .font(TypeScale.body)
                         .foregroundStyle(Theme.greenText)
                 }
             }
@@ -306,7 +306,8 @@ struct WeatherPopupContent: View {
                 if let from = taf.validFrom, let to = taf.validTo {
                     Text("Valid \(TimeFmt.clock(from, zone: zone)) → \(TimeFmt.clock(to, zone: zone))"
                          + (zoneCity.map { " · \($0) time" } ?? ""))
-                        .font(.caption2)
+                        .font(TypeScale.caption2)
+                        .monospacedDigit()
                         .foregroundStyle(Theme.inkSecondary)
                 }
                 ForEach(Array((taf.forecastPeriods ?? []).prefix(8).enumerated()), id: \.offset) { _, period in
@@ -317,12 +318,12 @@ struct WeatherPopupContent: View {
                                 .foregroundStyle(Theme.ink)
                             if let change = FAAGlossary.decodeChangeIndicator(period.changeIndicator) {
                                 Text(change)
-                                    .font(.caption2.weight(.bold))
+                                    .font(TypeScale.kicker)
                                     .foregroundStyle(Theme.teal)
                             }
                         }
                         Text(periodSummary(period))
-                            .font(.caption)
+                            .font(TypeScale.caption)
                             .foregroundStyle(Theme.inkSecondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -338,13 +339,13 @@ struct WeatherPopupContent: View {
                 VStack(alignment: .leading, spacing: 6) {
                     if let raw = metar?.raw {
                         Text(raw)
-                            .font(.caption2.monospaced())
+                            .font(TypeScale.mono2)
                             .foregroundStyle(Theme.inkSecondary)
                             .textSelection(.enabled)
                     }
                     if let rawTaf = taf?.raw {
                         Text(rawTaf)
-                            .font(.caption2.monospaced())
+                            .font(TypeScale.mono2)
                             .foregroundStyle(Theme.inkSecondary)
                             .textSelection(.enabled)
                     }
@@ -358,17 +359,17 @@ struct WeatherPopupContent: View {
     private func cloudRows(_ clouds: [CloudLayer]) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             Text("Cloud layers")
-                .font(.caption2.weight(.semibold))
+                .font(TypeScale.caption2Strong)
                 .foregroundStyle(Theme.inkSecondary)
             ForEach(Array(clouds.prefix(5).enumerated()), id: \.offset) { _, layer in
                 HStack(spacing: 6) {
                     if let base = layer.baseAglFt {
                         Text("\(Int(base)) ft")
-                            .font(.caption.monospaced())
+                            .font(TypeScale.mono)
                             .foregroundStyle(Theme.ink)
                     }
                     Text(FAAGlossary.cloudCoverage(layer.coverage ?? ""))
-                        .font(.caption)
+                        .font(TypeScale.caption)
                         .foregroundStyle(Theme.inkSecondary)
                 }
             }
@@ -412,17 +413,18 @@ struct WeatherPopupContent: View {
         VStack(alignment: .leading, spacing: 1) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(label)
-                    .font(.caption2.weight(.semibold))
+                    .font(TypeScale.caption2Strong)
                     .foregroundStyle(Theme.inkSecondary)
                     .frame(width: 88, alignment: .leading)
                 Text(value)
-                    .font(.caption.weight(.medium))
+                    .font(TypeScale.captionMedium)
+                    .monospacedDigit()
                     .foregroundStyle(Theme.ink)
                     .fixedSize(horizontal: false, vertical: true)
             }
             if let note {
                 Text(note)
-                    .font(.caption2)
+                    .font(TypeScale.caption2)
                     .foregroundStyle(Theme.inkSecondary)
                     .padding(.leading, 96)
                     .fixedSize(horizontal: false, vertical: true)
@@ -482,7 +484,7 @@ struct FaaProgramsPopupContent: View {
                     LucideIcon(name: "circle-check", size: 13, fallback: "checkmark.circle")
                         .foregroundStyle(Theme.green)
                     Text("No active FAA programs at \(icao) right now.")
-                        .font(.subheadline)
+                        .font(TypeScale.body)
                         .foregroundStyle(Theme.greenText)
                 }
             }
@@ -499,7 +501,7 @@ struct FaaProgramsPopupContent: View {
                         LucideIcon(name: icon, size: 13, fallback: "exclamationmark.triangle")
                             .foregroundStyle(color)
                         Text(title)
-                            .font(.caption.weight(.bold))
+                            .font(TypeScale.captionBold)
                             .foregroundStyle(color)
                         Spacer()
                     }
@@ -520,10 +522,10 @@ struct FaaProgramsPopupContent: View {
                     ForEach(detailPairs(object), id: \.0) { pair in
                         HStack(alignment: .firstTextBaseline, spacing: 6) {
                             Text(pair.0)
-                                .font(.caption2.weight(.semibold))
+                                .font(TypeScale.caption2Strong)
                                 .foregroundStyle(Theme.inkSecondary)
                             Text(pair.1)
-                                .font(.caption)
+                                .font(TypeScale.caption)
                                 .foregroundStyle(Theme.ink)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
@@ -554,7 +556,7 @@ struct JargonPopupContent: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(entry.name)
-                .font(.subheadline.weight(.bold))
+                .font(TypeScale.sectionTitle)
                 .foregroundStyle(Theme.ink)
             GlossaryText(text: entry.definition, font: .subheadline)
         }
@@ -581,11 +583,11 @@ struct JargonSheet: View {
                 }
                 VStack(alignment: .leading, spacing: 1) {
                     Text(entry.term)
-                        .font(.headline)
+                        .font(TypeScale.modalTitle)
                         .foregroundStyle(Theme.ink)
                     if entry.name != entry.term {
                         Text(entry.name)
-                            .font(.caption)
+                            .font(TypeScale.caption)
                             .foregroundStyle(Theme.inkSecondary)
                     }
                 }
@@ -614,7 +616,7 @@ func popupBlock<Content: View>(title: String, @ViewBuilder content: () -> Conten
     InsetSurface {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
-                .font(.caption.weight(.bold))
+                .font(TypeScale.captionBold)
                 .foregroundStyle(Theme.ink)
             content()
         }

@@ -47,12 +47,12 @@ struct DelayOutlookView: View {
                 .padding(.top, 2)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Delay trend")
-                    .font(.caption2.weight(.bold))
+                    .font(TypeScale.kicker)
                     .textCase(.uppercase)
                     .kerning(0.6)
                     .foregroundStyle(Theme.inkSecondary)
                 Text(line)
-                    .font(.caption.weight(.semibold))
+                    .font(TypeScale.captionStrong)
                     .monospacedDigit()
                     .foregroundStyle(trendColor(direction))
                     .fixedSize(horizontal: false, vertical: true)
@@ -110,7 +110,7 @@ struct DelayOutlookView: View {
                 .padding(.top, 2)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Outlook — what could change this")
-                    .font(.caption2.weight(.bold))
+                    .font(TypeScale.kicker)
                     .textCase(.uppercase)
                     .kerning(0.6)
                     .foregroundStyle(Theme.inkSecondary)

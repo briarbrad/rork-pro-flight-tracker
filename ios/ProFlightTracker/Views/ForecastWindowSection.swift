@@ -13,7 +13,7 @@ struct ForecastWindowSection: View {
             SectionHeader(icon: "cloud-sun", title: "Forecast in your window")
 
             Text("What's forecast within an hour either side of the predicted times above — not the current weather.")
-                .font(.caption2)
+                .font(TypeScale.caption2)
                 .foregroundStyle(Theme.inkSecondary)
 
             if let departure = windows.departure {
@@ -42,7 +42,7 @@ private struct WindowBlock: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(role)
-                    .font(.caption2.weight(.bold))
+                    .font(TypeScale.kicker)
                     .textCase(.uppercase)
                     .kerning(0.6)
                     .foregroundStyle(Theme.inkSecondary)
@@ -57,7 +57,7 @@ private struct WindowBlock: View {
 
             if window.isAvailable {
                 Text(headline)
-                    .font(.subheadline.weight(.semibold))
+                    .font(TypeScale.bodyStrong)
                     .foregroundStyle(window.prevailingEscalates ? Theme.red : Theme.ink)
 
                 if window.hasConditionalDeterioration {
@@ -68,7 +68,7 @@ private struct WindowBlock: View {
                     HStack(spacing: 6) {
                         ForEach(chips, id: \.self) { chip in
                             Text(chip)
-                                .font(.caption2.weight(.medium))
+                                .font(TypeScale.caption2Medium)
                                 .foregroundStyle(Theme.goldText)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4)
@@ -86,7 +86,7 @@ private struct WindowBlock: View {
                     } label: {
                         HStack(spacing: 5) {
                             Text(showPeriods ? "Hide forecast periods" : "Forecast periods (\(periods.count))")
-                                .font(.caption2.weight(.semibold))
+                                .font(TypeScale.caption2Strong)
                             LucideIcon(name: showPeriods ? "chevron-up" : "chevron-down",
                                        size: 10, fallback: "chevron.down")
                         }
@@ -136,7 +136,7 @@ private struct WindowBlock: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text("Could drop to")
-                        .font(.caption2.weight(.semibold))
+                        .font(TypeScale.caption2Strong)
                         .foregroundStyle(Theme.inkSecondary)
                     CategoryPill(category: window.worstConditional, emphasized: false)
                 }
@@ -194,11 +194,11 @@ private struct PeriodRow: View {
         HStack(alignment: .top, spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(period.fromLocal ?? "—")
-                    .font(.caption2.weight(.bold))
+                    .font(TypeScale.kicker)
                     .monospacedDigit()
                     .foregroundStyle(Theme.ink)
                 Text(period.groupLabel)
-                    .font(.caption2.weight(.bold))
+                    .font(TypeScale.kicker)
                     .textCase(.uppercase)
                     .kerning(0.6)
                     .foregroundStyle(period.isConditional ? Theme.goldText : Theme.inkSecondary)
@@ -210,7 +210,7 @@ private struct PeriodRow: View {
                     CategoryPill(category: period.categoryCode, emphasized: false)
                     if period.isConditional {
                         Text("temporary")
-                            .font(.caption2.weight(.bold))
+                            .font(TypeScale.kicker)
                             .textCase(.uppercase)
                             .kerning(0.6)
                             .foregroundStyle(Theme.inkSecondary)

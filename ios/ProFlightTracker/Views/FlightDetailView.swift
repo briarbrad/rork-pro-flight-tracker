@@ -344,7 +344,7 @@ struct FlightDetailView: View {
         VStack(alignment: .leading, spacing: 12) {
             SectionHeader(icon: "activity", title: "Since your brief")
             Text("Your brief's narrative is out of date, but these effects are from the latest status pull — they reflect the flight right now.")
-                .font(.caption)
+                .font(TypeScale.caption)
                 .foregroundStyle(Theme.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)
             EffectsList(effects: liveEffects)
@@ -447,10 +447,10 @@ struct FlightDetailView: View {
                             .padding(.top, 2)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(alert.title)
-                                .font(.caption.weight(.semibold))
+                                .font(TypeScale.captionStrong)
                                 .foregroundStyle(Theme.ink)
                             Text(TimeFmt.relative(alert.createdAt))
-                                .font(.caption2)
+                                .font(TypeScale.caption2)
                                 .foregroundStyle(Theme.inkSecondary)
                         }
                         Spacer()
@@ -476,7 +476,7 @@ struct SectionHeader: View {
             LucideIcon(name: icon, size: 16, fallback: "circle")
                 .foregroundStyle(Theme.teal)
             Text(title)
-                .font(.subheadline.weight(.bold))
+                .font(TypeScale.sectionTitle)
                 .foregroundStyle(Theme.ink)
             Spacer()
         }

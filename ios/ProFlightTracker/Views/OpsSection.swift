@@ -46,7 +46,7 @@ struct OpsSection: View {
                         LucideIcon(name: "telescope", size: 16, fallback: "binoculars")
                             .foregroundStyle(Theme.teal)
                         Text("Ops deep-dive")
-                            .font(.subheadline.weight(.bold))
+                            .font(TypeScale.sectionTitle)
                             .foregroundStyle(Theme.ink)
                         Spacer()
                         if isLoading {
@@ -70,7 +70,7 @@ struct OpsSection: View {
                     }
                     if isLoading && notams == nil {
                         Text("Pulling NOTAMs, RVR, lightning, and pilot reports — live FAA feeds take a few seconds…")
-                            .font(.caption)
+                            .font(TypeScale.caption)
                             .foregroundStyle(Theme.inkSecondary)
                     }
                     lightningBlock
@@ -88,18 +88,18 @@ struct OpsSection: View {
                 LucideIcon(name: "telescope", size: 16, fallback: "binoculars")
                     .foregroundStyle(Theme.inkSecondary)
                 Text("Ops deep-dive")
-                    .font(.subheadline.weight(.bold))
+                    .font(TypeScale.sectionTitle)
                     .foregroundStyle(Theme.ink)
                 Spacer()
                 HStack(spacing: 4) {
                     LucideIcon(name: "lock", size: 11, fallback: "lock")
                     Text(unlockText)
-                        .font(.caption2.weight(.semibold))
+                        .font(TypeScale.caption2Strong)
                 }
                 .foregroundStyle(Theme.inkSecondary)
             }
             Text("Lightning, runway visual range, NOTAMs, and pilot reports describe the next few hours — this far out they can't tell you anything about your departure, so the app doesn't pull them yet.")
-                .font(.caption)
+                .font(TypeScale.caption)
                 .foregroundStyle(Theme.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -147,14 +147,14 @@ struct OpsSection: View {
         if let lightning {
             opsBlock(icon: "zap", title: "Lightning — \(lightning.airport ?? "")") {
                 if let error = lightning.error {
-                    Text(error).font(.caption).foregroundStyle(Theme.inkSecondary)
+                    Text(error).font(TypeScale.caption).foregroundStyle(Theme.inkSecondary)
                 } else {
                     let close = lightning.strikesWithin5nm ?? 0
                     let total = lightning.totalStrikes ?? 0
                     Text(total == 0
                          ? "No strikes detected within \(Int(lightning.searchRadiusNm ?? 20)) nm."
                          : "\(total) strikes in the area, \(close) within 5 nm. Ramp closure risk: \(lightning.rampClosureRisk ?? "unknown").")
-                        .font(.caption)
+                        .font(TypeScale.caption)
                         .foregroundStyle(close > 0 ? Theme.goldText : Theme.inkSecondary)
                 }
             }
@@ -169,24 +169,24 @@ struct OpsSection: View {
                     ForEach(Array(runways.prefix(6).enumerated()), id: \.offset) { _, runway in
                         HStack {
                             Text("Rwy \(runway["runway"]?.stringValue ?? "?")")
-                                .font(.caption.weight(.semibold))
+                                .font(TypeScale.captionStrong)
                                 .foregroundStyle(Theme.ink)
                             Spacer()
                             Text(rvrText(runway))
-                                .font(.caption.monospaced())
+                                .font(TypeScale.mono)
                                 .foregroundStyle(Theme.inkSecondary)
                         }
                     }
                     if let risk = rvr["visibility_risk"]?.stringValue {
                         Text("Visibility risk: \(risk)")
-                            .font(.caption2)
+                            .font(TypeScale.caption2)
                             .foregroundStyle(Theme.inkSecondary)
                     }
                 } else if let error = rvr["error"]?.stringValue {
-                    Text(error).font(.caption).foregroundStyle(Theme.inkSecondary)
+                    Text(error).font(TypeScale.caption).foregroundStyle(Theme.inkSecondary)
                 } else {
                     Text("No RVR sensor data for this airport.")
-                        .font(.caption)
+                        .font(TypeScale.caption)
                         .foregroundStyle(Theme.inkSecondary)
                 }
             }
@@ -205,13 +205,13 @@ struct OpsSection: View {
         if let notams {
             opsBlock(icon: "file-warning", title: "NOTAMs — \(destIcao ?? originIcao ?? "")") {
                 if let error = notams.error {
-                    Text(error).font(.caption).foregroundStyle(Theme.inkSecondary)
+                    Text(error).font(TypeScale.caption).foregroundStyle(Theme.inkSecondary)
                 } else if let results = notams.results, !results.isEmpty {
                     rawToggle(isRaw: $showRawNotams)
                     ForEach(Array(results.prefix(5).enumerated()), id: \.offset) { _, notam in
                         if showRawNotams {
                             Text(notamText(notam))
-                                .font(.caption.monospaced())
+                                .font(TypeScale.mono)
                                 .foregroundStyle(Theme.inkSecondary)
                                 .lineLimit(4)
                                 .padding(.vertical, 2)
@@ -223,16 +223,16 @@ struct OpsSection: View {
                     }
                     if results.count > 5 {
                         Text("+ \(results.count - 5) more")
-                            .font(.caption2)
+                            .font(TypeScale.caption2)
                             .foregroundStyle(Theme.inkSecondary)
                     }
                 } else if notams.isQuiet {
                     Text("Feed was quiet during the capture window — no new NOTAMs broadcast.")
-                        .font(.caption)
+                        .font(TypeScale.caption)
                         .foregroundStyle(Theme.inkSecondary)
                 } else {
                     Text("No NOTAMs matched this airport.")
-                        .font(.caption)
+                        .font(TypeScale.caption)
                         .foregroundStyle(Theme.inkSecondary)
                 }
             }
@@ -262,7 +262,7 @@ struct OpsSection: View {
                     ForEach(Array(reports.prefix(4).enumerated()), id: \.offset) { _, report in
                         if showRawPireps {
                             Text(pirepText(report))
-                                .font(.caption.monospaced())
+                                .font(TypeScale.mono)
                                 .foregroundStyle(Theme.inkSecondary)
                                 .lineLimit(3)
                                 .padding(.vertical, 2)
@@ -273,7 +273,7 @@ struct OpsSection: View {
                     }
                 } else {
                     Text("No recent PIREPs near this airport.")
-                        .font(.caption)
+                        .font(TypeScale.caption)
                         .foregroundStyle(Theme.inkSecondary)
                 }
             }
@@ -299,7 +299,7 @@ struct OpsSection: View {
                     LucideIcon(name: isRaw.wrappedValue ? "languages" : "file-code",
                                size: 10, fallback: "doc.plaintext")
                     Text(isRaw.wrappedValue ? "Plain English" : "Raw")
-                        .font(.caption2.weight(.semibold))
+                        .font(TypeScale.caption2Strong)
                 }
                 .foregroundStyle(Theme.teal)
             }
@@ -314,7 +314,7 @@ struct OpsSection: View {
                     LucideIcon(name: icon, size: 13, fallback: "circle")
                         .foregroundStyle(Theme.teal)
                     Text(title)
-                        .font(.caption.weight(.bold))
+                        .font(TypeScale.captionBold)
                         .foregroundStyle(Theme.ink)
                 }
                 content()

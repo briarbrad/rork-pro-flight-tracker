@@ -25,8 +25,9 @@ struct FreshnessCaption: View {
             HStack(spacing: 4) {
                 LucideIcon(name: "history", size: 10, fallback: "clock")
                 Text("\(prefix) \(ageText)")
+                    .monospacedDigit()
             }
-            .font(.caption2)
+            .font(TypeScale.caption2)
             .foregroundStyle(isStale ? Theme.goldText : Theme.inkSecondary)
         }
     }
@@ -41,10 +42,11 @@ struct FreshnessCaption: View {
                 LucideIcon(name: "history", size: 11, fallback: "clock")
                     .foregroundStyle(Theme.gold)
                 Text(staleText)
+                    .monospacedDigit()
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .font(.caption2.weight(.semibold))
+            .font(TypeScale.caption2Strong)
             .foregroundStyle(Theme.goldText)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(10)

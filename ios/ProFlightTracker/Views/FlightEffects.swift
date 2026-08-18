@@ -19,11 +19,12 @@ struct EdctBanner: View {
                     .textCase(.uppercase)
                     .foregroundStyle(Theme.gold)
                 Text("\(edct.displayTime(fallbackZone: originZone)) (±5 min)")
-                    .font(.title3.weight(.bold))
+                    .font(TypeScale.title)
                     .monospacedDigit()
                     .foregroundStyle(.white)
                 Text(sublineText)
-                    .font(.caption2)
+                    .font(TypeScale.caption2)
+                    .monospacedDigit()
                     .foregroundStyle(.white.opacity(0.92))
             }
             Spacer(minLength: 0)
@@ -62,7 +63,7 @@ struct EffectsList: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("What's affecting this flight")
-                .font(.caption.weight(.bold))
+                .font(TypeScale.captionBold)
                 .foregroundStyle(Theme.ink)
 
             if primary.isEmpty && !info.isEmpty {
@@ -70,7 +71,7 @@ struct EffectsList: View {
                 // copy says which one this is, and owns any visible delta.
                 Text(unexplainedDeltaNote
                      ?? "No active cause identified in the sources checked — context below.")
-                    .font(.caption)
+                    .font(TypeScale.caption)
                     .foregroundStyle(Theme.inkSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -87,7 +88,7 @@ struct EffectsList: View {
                     HStack(spacing: 6) {
                         LucideIcon(name: "info", size: 12, fallback: "info.circle")
                         Text("More context (\(info.count))")
-                            .font(.caption2.weight(.semibold))
+                            .font(TypeScale.caption2Strong)
                         LucideIcon(name: showInfo ? "chevron-up" : "chevron-down",
                                    size: 11, fallback: "chevron.down")
                     }

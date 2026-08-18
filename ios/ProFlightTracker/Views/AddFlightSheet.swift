@@ -20,7 +20,7 @@ struct AddFlightSheet: View {
                         .textInputAutocapitalization(.characters)
                         .autocorrectionDisabled()
                         .focused($identFocused)
-                        .font(.body.weight(.semibold))
+                        .font(TypeScale.control)
 
                     DatePicker("Date", selection: $date, displayedComponents: .date)
                 } header: {
@@ -52,7 +52,7 @@ struct AddFlightSheet: View {
                                        fallback: "exclamationmark.triangle")
                         }
                         .foregroundStyle(Theme.red)
-                        .font(.subheadline)
+                        .font(TypeScale.body)
                     }
                 }
 
@@ -71,7 +71,7 @@ struct AddFlightSheet: View {
                             }
                             Spacer()
                         }
-                        .font(.body.weight(.semibold))
+                        .font(TypeScale.control)
                         .foregroundStyle(.white)
                         .padding(.vertical, 6)
                     }

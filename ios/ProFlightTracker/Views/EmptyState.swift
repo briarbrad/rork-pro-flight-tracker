@@ -35,10 +35,10 @@ struct EmptyState<Footer: View>: View {
             }
             VStack(spacing: Space.xxs + 2) {
                 Text(title)
-                    .font(.title3.weight(.semibold))
+                    .font(TypeScale.titleQuiet)
                     .foregroundStyle(Theme.ink)
                 Text(message)
-                    .font(.subheadline)
+                    .font(TypeScale.body)
                     .foregroundStyle(Theme.inkSecondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, Space.xl)

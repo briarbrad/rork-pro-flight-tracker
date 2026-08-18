@@ -57,7 +57,7 @@ struct BriefSection: View {
                     HStack(spacing: 4) {
                         LucideIcon(name: "refresh-cw", size: 11, fallback: "arrow.clockwise")
                         Text("Re-run")
-                            .font(.caption2.weight(.semibold))
+                            .font(TypeScale.caption2Strong)
                     }
                     .foregroundStyle(Theme.teal)
                 }
@@ -82,14 +82,14 @@ struct BriefSection: View {
     private var idleContent: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Get a judgement, not just data: the engine works out how far off departure is, consults only the sources that still carry signal at that horizon, and returns a verdict.")
-                .font(.caption)
+                .font(TypeScale.caption)
                 .foregroundStyle(Theme.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)
             PrimaryActionButton(title: "Run brief", icon: "radar", iconFallback: "scope") {
                 Task { await runBrief() }
             }
             Text("Uses 2–4 paid flight-data queries, so it only runs when you ask.")
-                .font(.caption2)
+                .font(TypeScale.caption2)
                 .foregroundStyle(Theme.inkSecondary)
         }
     }
@@ -98,7 +98,7 @@ struct BriefSection: View {
         HStack(spacing: 10) {
             ProgressView().controlSize(.small).tint(Theme.teal)
             Text("Assessing \(flight.ident)…")
-                .font(.caption)
+                .font(TypeScale.caption)
                 .foregroundStyle(Theme.inkSecondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -213,13 +213,13 @@ struct BriefSection: View {
                     VStack(alignment: .trailing, spacing: 1) {
                         HStack(spacing: 3) {
                             Text("Confidence")
-                                .font(.caption2)
+                                .font(TypeScale.caption2)
                                 .foregroundStyle(Theme.inkSecondary)
                             LucideIcon(name: "info", size: 10, fallback: "info.circle")
                                 .foregroundStyle(Theme.teal)
                         }
                         Text(confidence.capitalized)
-                            .font(.caption.weight(.bold))
+                            .font(TypeScale.captionBold)
                             .foregroundStyle(confidenceColor(confidence))
                     }
                 }
@@ -260,7 +260,7 @@ struct BriefSection: View {
                     .foregroundStyle(Theme.teal)
                 if let departsIn = departsInText(brief) {
                     Text("Departs \(departsIn)")
-                        .font(.caption.weight(.semibold))
+                        .font(TypeScale.captionStrong)
                         .foregroundStyle(Theme.ink)
                 }
                 if let band = brief.band {
@@ -275,7 +275,7 @@ struct BriefSection: View {
         InsetSurface {
             VStack(alignment: .leading, spacing: 6) {
                 Text("What's driving this")
-                    .font(.caption.weight(.bold))
+                    .font(TypeScale.captionBold)
                     .foregroundStyle(Theme.ink)
                 ForEach(Array(drivers.enumerated()), id: \.offset) { _, driver in
                     HStack(alignment: .top, spacing: Space.xs) {
@@ -297,7 +297,7 @@ struct BriefSection: View {
                     LucideIcon(name: "git-branch", size: 12, fallback: "arrow.triangle.branch")
                         .foregroundStyle(Theme.teal)
                     Text("Delay mechanism")
-                        .font(.caption.weight(.bold))
+                        .font(TypeScale.captionBold)
                         .foregroundStyle(Theme.ink)
                     if let code = brief.branch, code.uppercased() != "UNDETERMINED" {
                         StatusChip(text: code, tone: .info, size: .mini, uppercased: true)
@@ -320,7 +320,7 @@ struct BriefSection: View {
                 HStack(spacing: 6) {
                     LucideIcon(name: "eye-off", size: 12, fallback: "eye.slash")
                     Text("Deliberately not checked at this horizon (\(excluded.count))")
-                        .font(.caption2.weight(.semibold))
+                        .font(TypeScale.caption2Strong)
                     LucideIcon(name: showExcluded ? "chevron-up" : "chevron-down",
                                size: 11, fallback: "chevron.down")
                 }
@@ -330,10 +330,10 @@ struct BriefSection: View {
                 ForEach(excluded.sorted(by: { $0.key < $1.key }), id: \.key) { key, reason in
                     VStack(alignment: .leading, spacing: 1) {
                         Text(sourceName(key))
-                            .font(.caption2.weight(.bold))
+                            .font(TypeScale.kicker)
                             .foregroundStyle(Theme.ink)
                         Text(reason)
-                            .font(.caption2)
+                            .font(TypeScale.caption2)
                             .foregroundStyle(Theme.inkSecondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -431,7 +431,7 @@ struct NarrativeSection: View {
                         LucideIcon(name: "sparkles", size: 14, fallback: "sparkles")
                             .foregroundStyle(Theme.gold)
                         Text("Analyst narrative")
-                            .font(.subheadline.weight(.bold))
+                            .font(TypeScale.sectionTitle)
                             .foregroundStyle(Theme.ink)
                         Spacer()
                         if isWriting {
@@ -453,11 +453,11 @@ struct NarrativeSection: View {
                         MarkdownText(markdown: narrative, font: .subheadline, color: Theme.ink)
                     } else if isWriting {
                         Text("Writing narrative…")
-                            .font(.caption2)
+                            .font(TypeScale.caption2)
                             .foregroundStyle(Theme.inkSecondary)
                     } else {
                         Text("Narrative unavailable — the predictions and effects above are the full deterministic assessment.")
-                            .font(.caption2)
+                            .font(TypeScale.caption2)
                             .foregroundStyle(Theme.inkSecondary)
                     }
                 }

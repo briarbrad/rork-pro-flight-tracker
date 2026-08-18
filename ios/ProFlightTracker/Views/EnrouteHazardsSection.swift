@@ -46,7 +46,7 @@ struct EnrouteHazardsSection: View {
             }
 
             Text("Context only — these don't change the assessment above, the same way FAA traffic management treats them as inputs rather than decisions.")
-                .font(.caption2)
+                .font(TypeScale.caption2)
                 .foregroundStyle(Theme.inkSecondary)
         }
     }
@@ -69,7 +69,7 @@ struct EnrouteHazardsSection: View {
             }
 
             Text(convectiveHeadline(tcf))
-                .font(.caption)
+                .font(TypeScale.caption)
                 .foregroundStyle(Theme.inkSecondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -128,12 +128,12 @@ struct EnrouteHazardsSection: View {
                              color: Theme.ink)
                 Spacer()
                 Text("\(advisories.count)")
-                    .font(.caption2.weight(.bold))
+                    .font(TypeScale.kicker)
                     .foregroundStyle(Theme.inkSecondary)
             }
 
             Text("Active advisories in the airspace regions your airports sit in — a regional list, not a route-intersection test.")
-                .font(.caption2)
+                .font(TypeScale.caption2)
                 .foregroundStyle(Theme.inkSecondary)
 
             ForEach(Array(advisories.prefix(4).enumerated()), id: \.offset) { _, advisory in
@@ -146,7 +146,8 @@ struct EnrouteHazardsSection: View {
                                      font: .caption.weight(.semibold),
                                      color: Theme.ink)
                         Text(advisorySubline(advisory))
-                            .font(.caption2)
+                            .font(TypeScale.caption2)
+                            .monospacedDigit()
                             .foregroundStyle(Theme.inkSecondary)
                     }
                     Spacer(minLength: 0)
@@ -155,7 +156,7 @@ struct EnrouteHazardsSection: View {
 
             if advisories.count > 4 {
                 Text("+ \(advisories.count - 4) more in these regions")
-                    .font(.caption2)
+                    .font(TypeScale.caption2)
                     .foregroundStyle(Theme.inkSecondary)
             }
         }

@@ -85,14 +85,14 @@ struct InboundFlightView: View {
                     HStack(spacing: 5) {
                         LucideIcon(name: "link", size: 11, fallback: "link")
                         Text("Inbound aircraft leg")
-                            .font(.caption.weight(.semibold))
+                            .font(TypeScale.captionStrong)
                     }
                     .foregroundStyle(Theme.teal)
                     Text("\(flight.originCity ?? flight.originDisplay) → \(flight.destCity ?? flight.destDisplay)")
-                        .font(.subheadline.weight(.medium))
+                        .font(TypeScale.bodyMedium)
                         .foregroundStyle(Theme.inkSecondary)
                     Text(flight.status ?? "Awaiting data")
-                        .font(.title3.weight(.bold))
+                        .font(TypeScale.title)
                         .foregroundStyle(Theme.ink)
                 }
                 Spacer()
@@ -148,16 +148,16 @@ struct InboundFlightView: View {
         let shown = effective ?? scheduled
         return VStack(alignment: alignment, spacing: 3) {
             Text(title)
-                .font(.system(.title3, design: .rounded).weight(.bold))
+                .font(TypeScale.displaySmall)
                 .foregroundStyle(Theme.ink)
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 Text(TimeFmt.clock(shown, zone: zone))
-                    .font(.headline.weight(.semibold))
+                    .font(TypeScale.time)
                     .monospacedDigit()
                     .foregroundStyle(slipColor(scheduled: scheduled, effective: effective))
                 if let label = TimeFmt.zoneLabel(zone, atISO: shown) {
                     Text(label)
-                        .font(.caption2.weight(.bold))
+                        .font(TypeScale.kicker)
                         .textCase(.uppercase)
                         .kerning(0.6)
                         .foregroundStyle(Theme.inkSecondary)
@@ -166,7 +166,7 @@ struct InboundFlightView: View {
             if let effective, let sched = scheduled,
                TimeFmt.parseISO(effective) != TimeFmt.parseISO(sched) {
                 Text("Sched \(TimeFmt.clock(sched, zone: zone))")
-                    .font(.caption2)
+                    .font(TypeScale.caption2)
                     .strikethrough()
                     .foregroundStyle(Theme.inkSecondary)
             }
@@ -191,7 +191,7 @@ struct InboundFlightView: View {
                     LucideIcon(name: "circle-check", size: 16, fallback: "checkmark.circle")
                         .foregroundStyle(Theme.green)
                     Text(addSucceeded ? "Added to your watchlist." : "Already on your watchlist.")
-                        .font(.subheadline.weight(.semibold))
+                        .font(TypeScale.bodyStrong)
                         .foregroundStyle(Theme.ink)
                     Spacer()
                 }
@@ -206,7 +206,7 @@ struct InboundFlightView: View {
                             LucideIcon(name: "plus", size: 15, fallback: "plus")
                         }
                         Text(isAdding ? "Adding…" : "Track this flight")
-                            .font(.subheadline.weight(.bold))
+                            .font(TypeScale.sectionTitle)
                     }
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
@@ -218,7 +218,7 @@ struct InboundFlightView: View {
 
                 if let addMessage {
                     Text(addMessage)
-                        .font(.caption)
+                        .font(TypeScale.caption)
                         .foregroundStyle(Theme.red)
                 }
             }
@@ -230,7 +230,7 @@ struct InboundFlightView: View {
         HStack(spacing: 6) {
             LucideIcon(name: "leaf", size: 11, fallback: "leaf")
             Text("Refreshed once on open to stay light on paid flight data. Weather updates are free and live.")
-                .font(.caption2)
+                .font(TypeScale.caption2)
         }
         .foregroundStyle(Theme.inkSecondary)
         .frame(maxWidth: .infinity, alignment: .leading)

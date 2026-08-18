@@ -69,7 +69,7 @@ struct FloatingCardCover<Content: View>: View {
                     .foregroundStyle(tint)
             }
             Text(title)
-                .font(.headline)
+                .font(TypeScale.modalTitle)
                 .foregroundStyle(Theme.ink)
                 .lineLimit(2)
                 .minimumScaleFactor(0.8)

@@ -30,10 +30,10 @@ struct FlightCardView: View {
             HStack(alignment: .center) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(flight.ident)
-                        .font(.headline.weight(.bold))
+                        .font(TypeScale.headline)
                         .foregroundStyle(Theme.ink)
                     Text(dateLabel)
-                        .font(.caption)
+                        .font(TypeScale.caption)
                         .foregroundStyle(Theme.inkSecondary)
                 }
                 Spacer()
@@ -76,7 +76,7 @@ struct FlightCardView: View {
                     LucideIcon(name: "triangle-alert", size: 13,
                                fallback: "exclamationmark.triangle")
                     Text(refreshError)
-                        .font(.caption)
+                        .font(TypeScale.caption)
                         .lineLimit(2)
                     Spacer(minLength: 8)
                     if let onRetry {
@@ -88,7 +88,7 @@ struct FlightCardView: View {
                                 LucideIcon(name: "refresh-cw", size: 11,
                                            fallback: "arrow.clockwise")
                                 Text("Retry")
-                                    .font(.caption.weight(.bold))
+                                    .font(TypeScale.captionBold)
                             }
                             .padding(.horizontal, 10)
                             .padding(.vertical, 6)
@@ -137,7 +137,7 @@ struct FlightCardView: View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(leg?.originDisplay ?? "—")
-                    .font(.system(.title, design: .rounded).weight(.bold))
+                    .font(TypeScale.display)
                     .foregroundStyle(Theme.ink)
                 timeText(leg?.estimatedOut ?? leg?.scheduledOut,
                          zone: zones.origin,
@@ -156,7 +156,7 @@ struct FlightCardView: View {
 
             VStack(alignment: .trailing, spacing: 2) {
                 Text(leg?.destDisplay ?? "—")
-                    .font(.system(.title, design: .rounded).weight(.bold))
+                    .font(TypeScale.display)
                     .foregroundStyle(Theme.ink)
                 timeText(leg?.estimatedIn ?? leg?.scheduledIn,
                          zone: zones.destination,
@@ -170,12 +170,12 @@ struct FlightCardView: View {
                          alignment: HorizontalAlignment) -> some View {
         VStack(alignment: alignment, spacing: 0) {
             Text(TimeFmt.clock(iso, zone: zone))
-                .font(.subheadline.weight(.medium))
+                .font(TypeScale.bodyMedium)
                 .monospacedDigit()
                 .foregroundStyle(tint)
             if let label = TimeFmt.zoneLabel(zone, atISO: iso), iso != nil {
                 Text(label)
-                    .font(.caption2.weight(.bold))
+                    .font(TypeScale.kicker)
                     .textCase(.uppercase)
                     .kerning(0.6)
                     .foregroundStyle(Theme.inkSecondary)

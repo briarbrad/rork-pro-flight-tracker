@@ -20,7 +20,7 @@ struct PrimaryActionButton: View {
                     LucideIcon(name: icon, size: 14, fallback: iconFallback)
                 }
                 Text(title)
-                    .font(.subheadline.weight(.semibold))
+                    .font(TypeScale.bodyStrong)
             }
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity)

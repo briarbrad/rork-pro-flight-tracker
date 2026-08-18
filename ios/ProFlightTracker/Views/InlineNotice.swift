@@ -36,7 +36,7 @@ struct InlineNotice: View {
             LucideIcon(name: style.icon.name, size: 13, fallback: style.icon.fallback)
                 .padding(.top, 1)
             Text(message)
-                .font(.caption)
+                .font(TypeScale.caption)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: Space.xs)
             if let actionLabel, let action {
@@ -44,7 +44,7 @@ struct InlineNotice: View {
                     Haptics.tap()
                     action()
                 }
-                .font(.caption.weight(.semibold))
+                .font(TypeScale.captionStrong)
                 .buttonStyle(.borderless)
                 .disabled(actionDisabled)
             }

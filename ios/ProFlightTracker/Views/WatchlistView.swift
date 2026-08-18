@@ -100,10 +100,10 @@ struct WatchlistView: View {
             }
             VStack(spacing: 6) {
                 Text("No flights tracked yet")
-                    .font(.title3.weight(.semibold))
+                    .font(TypeScale.titleQuiet)
                     .foregroundStyle(Theme.ink)
                 Text("Add a flight and the engine will watch FAA programs, weather, and your aircraft's inbound chain for early trouble.")
-                    .font(.subheadline)
+                    .font(TypeScale.body)
                     .foregroundStyle(Theme.inkSecondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 32)
@@ -115,7 +115,7 @@ struct WatchlistView: View {
                 HStack(spacing: 8) {
                     LucideIcon(name: "plus", size: 16, fallback: "plus")
                     Text("Track a flight")
-                        .font(.body.weight(.semibold))
+                        .font(TypeScale.control)
                 }
                 .foregroundStyle(.white)
                 .padding(.horizontal, 24)

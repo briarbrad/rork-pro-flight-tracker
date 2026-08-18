@@ -38,6 +38,64 @@ enum Theme {
     }
 }
 
+/// Canonical type scale — every text role in the app, pinned to a specific
+/// system style + weight. Views reference these instead of ad hoc `.font()`
+/// calls, so new screens can't introduce a stray size, and every numeric/
+/// time role ships with tabular digits baked in — refreshing values never
+/// shift the layout.
+enum TypeScale {
+    // MARK: Numeric & time roles (tabular digits built in)
+
+    /// Watchlist card big times — the largest number on any screen.
+    static let display: Font = .system(.title, design: .rounded).weight(.bold).monospacedDigit()
+    /// Inbound-page big time — one step under `display`.
+    static let displaySmall: Font = .system(.title3, design: .rounded).weight(.bold).monospacedDigit()
+    /// Hero card next-event time ("~8:43 AM EDT").
+    static let hero: Font = .system(.title2, design: .rounded).weight(.bold).monospacedDigit()
+    /// Timeline milestone times — emphatic but in the text voice, not rounded.
+    static let time: Font = .headline.weight(.semibold).monospacedDigit()
+
+    // MARK: Titles
+
+    /// Popup / page titles.
+    static let title: Font = .title3.weight(.bold)
+    /// Empty-state and quieter large titles.
+    static let titleQuiet: Font = .title3.weight(.semibold)
+    /// Card headlines.
+    static let headline: Font = .headline.weight(.bold)
+    /// Floating-card / modal header titles.
+    static let modalTitle: Font = .headline
+
+    // MARK: Body
+
+    /// Card section titles ("Pre-flight brief", "Signals").
+    static let sectionTitle: Font = .subheadline.weight(.bold)
+    static let bodyStrong: Font = .subheadline.weight(.semibold)
+    static let bodyMedium: Font = .subheadline.weight(.medium)
+    /// Default reading text.
+    static let body: Font = .subheadline
+    /// Form controls and primary buttons.
+    static let control: Font = Font.body.weight(.semibold)
+
+    // MARK: Captions
+
+    static let captionBold: Font = .caption.weight(.bold)
+    static let captionStrong: Font = .caption.weight(.semibold)
+    static let captionMedium: Font = .caption.weight(.medium)
+    static let caption: Font = .caption
+    /// Uppercase kicker labels ("GATE DEPARTURE · SEA").
+    static let kicker: Font = .caption2.weight(.bold)
+    static let caption2Strong: Font = .caption2.weight(.semibold)
+    static let caption2Medium: Font = .caption2.weight(.medium)
+    static let caption2: Font = .caption2
+
+    // MARK: Raw data
+
+    /// Verbatim source data (METAR text, NOTAMs, idents).
+    static let mono: Font = .caption.monospaced()
+    static let mono2: Font = .caption2.monospaced()
+}
+
 /// Canonical spacing scale — base unit 4, common steps 12/16/24/32.
 /// Every padding/spacing in the app should come from here, never a magic
 /// number, so the whole UI moves on one cadence.

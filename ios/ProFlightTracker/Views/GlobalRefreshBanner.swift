@@ -13,9 +13,9 @@ struct GlobalRefreshBanner: View {
                 .padding(.top, 1)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Couldn't refresh")
-                    .font(.caption.weight(.bold))
+                    .font(TypeScale.captionBold)
                 Text("\(message) Cards below show the last data received.")
-                    .font(.caption2)
+                    .font(TypeScale.caption2)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)
@@ -25,7 +25,7 @@ struct GlobalRefreshBanner: View {
                     onRetry()
                 } label: {
                     Text("Retry")
-                        .font(.caption.weight(.bold))
+                        .font(TypeScale.captionBold)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 5)
                         .background(Theme.red.opacity(0.12))

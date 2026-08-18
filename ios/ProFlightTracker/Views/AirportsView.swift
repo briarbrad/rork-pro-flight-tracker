@@ -77,7 +77,7 @@ struct AirportsView: View {
                 lookup(query)
             } label: {
                 Text("Look up")
-                    .font(.subheadline.weight(.semibold))
+                    .font(TypeScale.bodyStrong)
                     .foregroundStyle(.white)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 8)
@@ -121,7 +121,7 @@ struct AirportsView: View {
         VStack(spacing: 10) {
             ProgressView().tint(Theme.teal)
             Text("Pulling live weather and FAA status…")
-                .font(.caption)
+                .font(TypeScale.caption)
                 .foregroundStyle(Theme.inkSecondary)
         }
         .frame(maxWidth: .infinity)
@@ -164,7 +164,7 @@ struct AirportsView: View {
                     LucideIcon(name: "zap", size: 14, fallback: "bolt")
                         .foregroundStyle((lightning.strikesWithin5nm ?? 0) > 0 ? Theme.gold : Theme.green)
                     Text(lightningSummary(lightning))
-                        .font(.caption)
+                        .font(TypeScale.caption)
                         .foregroundStyle(Theme.inkSecondary)
                 }
             }
@@ -194,27 +194,27 @@ struct AirportsView: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
                 Text("Forecast periods")
-                    .font(.caption.weight(.bold))
+                    .font(TypeScale.captionBold)
                     .foregroundStyle(Theme.ink)
                 if let city = AirportTimeZones.cityName(zone) {
                     Text("· \(city) time")
-                        .font(.caption2)
+                        .font(TypeScale.caption2)
                         .foregroundStyle(Theme.inkSecondary)
                 }
             }
             ForEach(Array(periods.prefix(5).enumerated()), id: \.offset) { _, period in
                 HStack(spacing: 8) {
                     Text(TimeFmt.clock(period.timeFrom, zone: zone))
-                        .font(.caption2.monospaced())
+                        .font(TypeScale.mono2)
                         .foregroundStyle(Theme.inkSecondary)
                         .frame(width: 64, alignment: .leading)
                     if let change = FAAGlossary.decodeChangeIndicator(period.changeIndicator) {
                         Text(change)
-                            .font(.caption2.weight(.bold))
+                            .font(TypeScale.kicker)
                             .foregroundStyle(Theme.teal)
                     }
                     Text(periodSummary(period))
-                        .font(.caption2)
+                        .font(TypeScale.caption2)
                         .foregroundStyle(Theme.inkSecondary)
                         .lineLimit(1)
                     Spacer()

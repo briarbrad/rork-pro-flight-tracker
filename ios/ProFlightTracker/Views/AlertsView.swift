@@ -28,7 +28,7 @@ struct AlertsView: View {
                             Haptics.tap()
                             store.markAllAlertsRead()
                         }
-                        .font(.subheadline.weight(.medium))
+                        .font(TypeScale.bodyMedium)
                         .foregroundStyle(Theme.teal)
                     }
                 }
@@ -94,24 +94,25 @@ private struct AlertRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
                     Text(alert.ident)
-                        .font(.caption.weight(.bold))
+                        .font(TypeScale.captionBold)
                         .foregroundStyle(Theme.teal)
                     if let route = alert.route {
                         Text(route)
-                            .font(.caption2.weight(.semibold))
+                            .font(TypeScale.caption2Strong)
                             .foregroundStyle(Theme.inkSecondary)
                             .lineLimit(1)
                     }
                     Spacer()
                     Text(timeLabel)
-                        .font(.caption2)
+                        .font(TypeScale.caption2)
+                        .monospacedDigit()
                         .foregroundStyle(Theme.inkSecondary)
                 }
                 Text(alert.title)
                     .font(.subheadline.weight(alert.isRead ? .medium : .bold))
                     .foregroundStyle(Theme.ink)
                 Text(alert.message)
-                    .font(.caption)
+                    .font(TypeScale.caption)
                     .foregroundStyle(Theme.inkSecondary)
                     .lineLimit(3)
 

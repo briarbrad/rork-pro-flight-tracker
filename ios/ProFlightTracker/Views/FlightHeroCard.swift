@@ -41,7 +41,7 @@ struct FlightHeroCard: View {
             // footnote, not a headline — the phase layer is the state.
             if let status = leg?.status, !status.isEmpty {
                 Text("Airline status · \(status)")
-                    .font(.caption2)
+                    .font(TypeScale.caption2)
                     .foregroundStyle(Theme.inkSecondary)
             }
 
@@ -85,7 +85,7 @@ struct FlightHeroCard: View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 8) {
                 Text("\(leg?.originCity ?? leg?.originDisplay ?? "—") → \(leg?.destCity ?? leg?.destDisplay ?? "—")")
-                    .font(.subheadline.weight(.medium))
+                    .font(TypeScale.bodyMedium)
                     .foregroundStyle(Theme.inkSecondary)
                 HStack(spacing: 8) {
                     if let phase {
@@ -94,7 +94,7 @@ struct FlightHeroCard: View {
                     }
                     if let elapsed = elapsedInPhaseMinNow, phase?.isEnRoute == true {
                         Text("started \(durationText(elapsed)) ago")
-                            .font(.caption.weight(.semibold))
+                            .font(TypeScale.captionStrong)
                             .monospacedDigit()
                             .contentTransition(.numericText())
                             .animation(.snappy, value: elapsed)
@@ -116,7 +116,7 @@ struct FlightHeroCard: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(phase?.nextEventLabel ?? "Next event")
-                    .font(.caption.weight(.semibold))
+                    .font(TypeScale.captionStrong)
                     .foregroundStyle(Theme.inkSecondary)
                     .textCase(.uppercase)
                 if phase?.isControlled == true {
@@ -148,7 +148,7 @@ struct FlightHeroCard: View {
                 HStack(spacing: 6) {
                     LucideIcon(name: "trending-down", size: 12, fallback: "arrow.down.right")
                     Text("Overdue — the predicted time has passed and it hasn't happened yet.")
-                        .font(.caption)
+                        .font(TypeScale.caption)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .foregroundStyle(Theme.red)
@@ -156,7 +156,7 @@ struct FlightHeroCard: View {
 
             if let basis = phase?.nextEventBasis, !basis.isEmpty {
                 Text("Basis: \(basis)")
-                    .font(.caption2)
+                    .font(TypeScale.caption2)
                     .foregroundStyle(Theme.inkSecondary)
             }
         }
@@ -164,7 +164,7 @@ struct FlightHeroCard: View {
 
     private var nextEventTimeView: some View {
         Text(nextEventTimeText)
-            .font(.system(.title2, design: .rounded).weight(.bold))
+            .font(TypeScale.hero)
             .monospacedDigit()
             .contentTransition(.numericText())
             .animation(.snappy, value: nextEventTimeText)
@@ -176,7 +176,7 @@ struct FlightHeroCard: View {
     private var countdownView: some View {
         if let countdown = countdownText {
             Text(countdown)
-                .font(.subheadline.weight(.semibold))
+                .font(TypeScale.bodyStrong)
                 .monospacedDigit()
                 .contentTransition(.numericText())
                 .animation(.snappy, value: countdown)
@@ -189,7 +189,7 @@ struct FlightHeroCard: View {
         HStack(spacing: 8) {
             LucideIcon(name: "circle-x", size: 14, fallback: "xmark.circle")
             Text(phase?.phaseDetail ?? "This flight has been cancelled.")
-                .font(.subheadline.weight(.semibold))
+                .font(TypeScale.bodyStrong)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .foregroundStyle(Theme.red)
@@ -260,7 +260,7 @@ struct FlightHeroCard: View {
                 Spacer()
                 if let elapsed = taxi.elapsedMin, let typical = taxi.typicalMin {
                     Text("\(elapsed) min · typical \(typical)")
-                        .font(.caption2.weight(.semibold))
+                        .font(TypeScale.caption2Strong)
                         .monospacedDigit()
                         .foregroundStyle(Theme.inkSecondary)
                 }
@@ -283,11 +283,11 @@ struct FlightHeroCard: View {
                            fallback: "location")
                     .foregroundStyle(movementColor(position.movementCode))
                 Text(position.movementLabel ?? "Position reported")
-                    .font(.caption.weight(.bold))
+                    .font(TypeScale.captionBold)
                     .foregroundStyle(Theme.ink)
                 if let speed = position.groundspeedKts, speed > 0 {
                     Text("\(Int(speed)) kt")
-                        .font(.caption2.weight(.semibold))
+                        .font(TypeScale.caption2Strong)
                         .monospacedDigit()
                         .foregroundStyle(Theme.inkSecondary)
                 }

@@ -22,10 +22,10 @@ struct SignalRow: View {
                 }
                 VStack(alignment: .leading, spacing: 2) {
                     Text(signal.title)
-                        .font(.subheadline.weight(.semibold))
+                        .font(TypeScale.bodyStrong)
                         .foregroundStyle(Theme.ink)
                     Text(signal.detail)
-                        .font(.caption)
+                        .font(TypeScale.caption)
                         .foregroundStyle(Theme.inkSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                         .multilineTextAlignment(.leading)
@@ -61,14 +61,14 @@ struct SignalListSection: View {
                 SectionHeader(icon: icon, title: title)
                 if let caption {
                     Text(caption)
-                        .font(.caption2)
+                        .font(TypeScale.caption2)
                         .foregroundStyle(Theme.inkSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 if signals.isEmpty {
                     if let emptyText {
                         Text(emptyText)
-                            .font(.caption)
+                            .font(TypeScale.caption)
                             .foregroundStyle(Theme.inkSecondary)
                     }
                 } else {
@@ -121,13 +121,13 @@ struct ChainSection: View {
                     VStack(alignment: .leading, spacing: 6) {
                         HStack {
                             Text("Inbound leg — \(inbound.ident ?? "unknown")")
-                                .font(.caption.weight(.semibold))
+                                .font(TypeScale.captionStrong)
                                 .foregroundStyle(Theme.inkSecondary)
                             Spacer()
                             if onOpenInbound != nil {
                                 HStack(spacing: 3) {
                                     Text("View flight")
-                                        .font(.caption2.weight(.semibold))
+                                        .font(TypeScale.caption2Strong)
                                     LucideIcon(name: "chevron-right", size: 11, fallback: "chevron.right")
                                 }
                                 .foregroundStyle(Theme.teal)
@@ -135,14 +135,14 @@ struct ChainSection: View {
                         }
                         HStack {
                             Text(inbound.originDisplay)
-                                .font(.headline.weight(.bold))
+                                .font(TypeScale.headline)
                             LucideIcon(name: "move-right", size: 14, fallback: "arrow.right")
                                 .foregroundStyle(Theme.inkSecondary)
                             Text(inbound.destDisplay)
-                                .font(.headline.weight(.bold))
+                                .font(TypeScale.headline)
                             Spacer()
                             Text(inboundArrivalText(inbound))
-                                .font(.subheadline.weight(.medium))
+                                .font(TypeScale.bodyMedium)
                                 .monospacedDigit()
                                 .foregroundStyle(inboundLate ? Theme.goldText : Theme.inkSecondary)
                         }
@@ -156,7 +156,7 @@ struct ChainSection: View {
                 .disabled(onOpenInbound == nil)
             } else {
                 Text("No inbound leg data — the aircraft may originate here.")
-                    .font(.caption)
+                    .font(TypeScale.caption)
                     .foregroundStyle(Theme.inkSecondary)
             }
 
@@ -193,12 +193,12 @@ struct ChainSection: View {
             VStack(alignment: .leading, spacing: 2) {
                 if let minutes = turn.turnTimeAvailableMin {
                     Text("Turn time: \(Int(minutes)) min available")
-                        .font(.subheadline.weight(.semibold))
+                        .font(TypeScale.bodyStrong)
                         .foregroundStyle(Theme.ink)
                 }
                 if let note = turn.note {
                     Text(note)
-                        .font(.caption)
+                        .font(TypeScale.caption)
                         .foregroundStyle(Theme.inkSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -248,7 +248,7 @@ struct MapPreviewSection: View {
                         HStack(spacing: 4) {
                             LucideIcon(name: "expand", size: 11, fallback: "arrow.up.left.and.arrow.down.right")
                             Text("Expand")
-                                .font(.caption2.weight(.semibold))
+                                .font(TypeScale.caption2Strong)
                         }
                         .foregroundStyle(.white)
                         .padding(.horizontal, 9)
@@ -330,7 +330,7 @@ struct WeatherSection: View {
                         LucideIcon(name: "hourglass", size: 12, fallback: "hourglass")
                             .padding(.top, 1)
                         Text(horizonNote)
-                            .font(.caption2)
+                            .font(TypeScale.caption2)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     .foregroundStyle(Theme.inkSecondary)
@@ -375,7 +375,7 @@ struct AirportWeatherCard: View {
                 } label: {
                     HStack(spacing: 8) {
                         Text(icao)
-                            .font(.subheadline.weight(.bold))
+                            .font(TypeScale.sectionTitle)
                             .foregroundStyle(Theme.ink)
                         if let category = metar?.flightCategory {
                             StatusChip(text: category, tone: categoryTone(category),
@@ -396,7 +396,7 @@ struct AirportWeatherCard: View {
                         withAnimation(.snappy) { showRaw.toggle() }
                     } label: {
                         Text(showRaw ? "Decoded" : "Raw")
-                            .font(.caption2.weight(.semibold))
+                            .font(TypeScale.caption2Strong)
                             .foregroundStyle(Theme.teal)
                     }
                 }
@@ -410,12 +410,12 @@ struct AirportWeatherCard: View {
                 VStack(alignment: .leading, spacing: 6) {
                     if let raw = metar?.raw {
                         Text(raw)
-                            .font(.caption.monospaced())
+                            .font(TypeScale.mono)
                             .foregroundStyle(Theme.ink)
                     }
                     if let rawTaf = taf?.raw {
                         Text(rawTaf)
-                            .font(.caption.monospaced())
+                            .font(TypeScale.mono)
                             .foregroundStyle(Theme.inkSecondary)
                     }
                 }
@@ -424,7 +424,7 @@ struct AirportWeatherCard: View {
                     onOpenWeather?()
                 } label: {
                     Text(metar.decoded)
-                        .font(.caption)
+                        .font(TypeScale.caption)
                         .foregroundStyle(Theme.inkSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                         .multilineTextAlignment(.leading)
@@ -434,7 +434,7 @@ struct AirportWeatherCard: View {
                 .disabled(onOpenWeather == nil)
             } else {
                 Text("No observation available.")
-                    .font(.caption)
+                    .font(TypeScale.caption)
                     .foregroundStyle(Theme.inkSecondary)
             }
         }
@@ -469,7 +469,7 @@ struct AirportWeatherCard: View {
                 LucideIcon(name: "circle-check", size: 11, fallback: "checkmark.circle")
                     .foregroundStyle(Theme.green)
                 Text("No active FAA programs")
-                    .font(.caption2.weight(.medium))
+                    .font(TypeScale.caption2Medium)
             }
             .foregroundStyle(Theme.greenText)
         }

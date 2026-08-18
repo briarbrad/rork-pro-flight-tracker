@@ -64,10 +64,10 @@ struct LiveMapView: View {
             HStack(spacing: 6) {
                 LucideIcon(name: "plane", size: 14, fallback: "airplane")
                 Text(flight.ident)
-                    .font(.subheadline.weight(.bold))
+                    .font(TypeScale.sectionTitle)
                 if let registration {
                     Text(registration)
-                        .font(.caption)
+                        .font(TypeScale.caption)
                         .foregroundStyle(Theme.inkSecondary)
                 }
             }
@@ -93,7 +93,7 @@ struct LiveMapView: View {
         VStack(spacing: 10) {
             if position == nil {
                 Text(statusText)
-                    .font(.subheadline)
+                    .font(TypeScale.body)
                     .foregroundStyle(Theme.inkSecondary)
             } else {
                 // Three numeric metrics share the row at full size; the data
@@ -112,7 +112,7 @@ struct LiveMapView: View {
                         LucideIcon(name: "radio", size: 11, fallback: "antenna.radiowaves.left.and.right")
                             .foregroundStyle(Theme.teal)
                         Text("Source · \(source.replacingOccurrences(of: "_", with: " "))")
-                            .font(.caption2.weight(.medium))
+                            .font(TypeScale.caption2Medium)
                             .foregroundStyle(Theme.inkSecondary)
                             .lineLimit(1)
                             .truncationMode(.tail)
@@ -133,13 +133,13 @@ struct LiveMapView: View {
             // Full-size always — numeric values are short ("38000 ft"), and
             // with three columns each gets enough width; wrap rather than shrink.
             Text(value)
-                .font(.subheadline.weight(.bold))
+                .font(TypeScale.sectionTitle)
                 .monospacedDigit()
                 .foregroundStyle(Theme.ink)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
             Text(label)
-                .font(.caption2)
+                .font(TypeScale.caption2)
                 .foregroundStyle(Theme.inkSecondary)
         }
         .frame(maxWidth: .infinity)
