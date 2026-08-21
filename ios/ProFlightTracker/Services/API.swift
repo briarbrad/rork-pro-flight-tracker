@@ -184,6 +184,36 @@ nonisolated enum API {
         try await get("/api/swim/itws", query: ["airport": airportIcao, "duration": "8"])
     }
 
+    // MARK: - AI narrative (provider key lives server-side)
+
+    nonisolated struct NarrativeEnvelope: Decodable, Sendable {
+        let narrative: String
+        let cached: Bool
+    }
+
+    /// Generates the brief narrative server-side. The backend owns the AI
+    /// provider key and model choice; the device sends only the brief's own
+    /// llm_payload fields — no AI secret ships in the app bundle.
+    static func narrative(system: String, user: String,
+                          facts: JSONValue?) async throws -> NarrativeEnvelope {
+        var request = URLRequest(url: try url("/api/narrative", [:]))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        var body: [String: JSONValue] = [
+            "system": .string(system),
+            "user": .string(user),
+        ]
+        if let facts { body["facts"] = facts }
+        request.httpBody = try JSONEncoder().encode(body)
+        let data = try await perform(request)
+        do {
+            return try JSONDecoder().decode(NarrativeEnvelope.self, from: data)
+        } catch {
+            print("[API] decode failure at /api/narrative: \(error)")
+            throw APIError.decoding("\(error)")
+        }
+    }
+
     // MARK: - Tracking service
 
     @discardableResult
