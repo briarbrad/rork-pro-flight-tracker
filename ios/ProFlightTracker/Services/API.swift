@@ -214,6 +214,48 @@ nonisolated enum API {
         }
     }
 
+    // MARK: - AI chat (stateless — the full conversation is sent every call)
+
+    nonisolated struct ChatEnvelope: Decodable, Sendable {
+        let reply: String
+    }
+
+    private nonisolated struct ChatRequestBody: Encodable {
+        nonisolated struct Message: Encodable {
+            let role: String
+            let content: String
+        }
+
+        let flight: String
+        let date: String
+        let facts: JSONValue?
+        let messages: [Message]
+    }
+
+    /// Free-form follow-up questions about one flight, grounded in the same
+    /// brief facts already on screen. The server holds no memory between
+    /// requests and owns the AI provider key — nothing AI-related ships in
+    /// the app bundle.
+    static func chat(flight: String, date: String, facts: JSONValue?,
+                     turns: [ChatTurn]) async throws -> ChatEnvelope {
+        var request = URLRequest(url: try url("/api/chat", [:]))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let body = ChatRequestBody(
+            flight: flight,
+            date: date,
+            facts: facts,
+            messages: turns.map { .init(role: $0.role, content: $0.content) })
+        request.httpBody = try JSONEncoder().encode(body)
+        let data = try await perform(request)
+        do {
+            return try JSONDecoder().decode(ChatEnvelope.self, from: data)
+        } catch {
+            print("[API] decode failure at /api/chat: \(error)")
+            throw APIError.decoding("\(error)")
+        }
+    }
+
     // MARK: - Tracking service
 
     @discardableResult

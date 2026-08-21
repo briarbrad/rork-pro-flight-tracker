@@ -48,6 +48,10 @@ nonisolated struct FlightSnapshot: Codable, Hashable, Sendable {
     /// user closes the screen mid-run. Manual "Run brief" / "Re-run" stay
     /// available regardless. Optional so old persisted snapshots decode.
     var autoBriefAttempted: Bool?
+    /// Per-flight Q&A chat history. Rides the snapshot's existing Codable
+    /// persistence, so conversations survive relaunch with no extra storage
+    /// code. Optional so old persisted snapshots decode.
+    var chatHistory: [ChatTurn]?
 
     /// The flight is finished (`refresh_after_seconds: null` from the live
     /// endpoint) — nothing can change, so automatic refreshes stop.

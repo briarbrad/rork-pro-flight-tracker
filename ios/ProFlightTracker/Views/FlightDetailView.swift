@@ -17,6 +17,7 @@ struct FlightDetailView: View {
     let flight: TrackedFlight
 
     @State private var showingMap: Bool = false
+    @State private var showingChat: Bool = false
     @State private var popup: DetailPopup?
     @State private var jargon: GlossaryEntry?
     @State private var inboundToShow: AeroFlight?
@@ -99,6 +100,12 @@ struct FlightDetailView: View {
 
     private var briefHasEffects: Bool { brief?.hasEffects == true }
 
+    /// Chat needs the brief's grounding facts — same gate the narrative uses.
+    /// Before the brief lands there's nothing to chat about.
+    private var chatAvailable: Bool {
+        brief?.llmPayload?.facts != nil
+    }
+
     /// Nothing on file for this flight yet — first open before the initial
     /// pull lands. Renders a placeholder skeleton in the real layout's shape
     /// instead of a blank screen; the global banner (with retry) still shows
@@ -159,6 +166,13 @@ struct FlightDetailView: View {
         // Keeps the floating tab bar from covering the last card.
         .contentMargins(.bottom, 24, for: .scrollContent)
         .background(Theme.canvas)
+        // Floating "ask about this flight" chat — only once the brief has
+        // supplied grounding facts, so answers stay tied to real data.
+        .overlay(alignment: .bottomTrailing) {
+            if chatAvailable {
+                chatButton
+            }
+        }
         .navigationTitle(flight.ident)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -183,6 +197,9 @@ struct FlightDetailView: View {
                         registration: snapshot?.chain?.tailNumber ?? leg?.registration)
         }
         .fullScreenCover(item: $popup) { DetailPopupHost(popup: $0) }
+        .sheet(isPresented: $showingChat) {
+            ChatSheetView(flight: flight, store: store)
+        }
         // Glossary definitions are a half-height system sheet — quick to
         // glance, quick to dismiss.
         .sheet(item: $jargon) { JargonSheet(entry: $0) }
@@ -280,6 +297,24 @@ struct FlightDetailView: View {
     }
 
     // MARK: - Shared building blocks
+
+    /// Circular floating action button pinned above the scrolling content.
+    private var chatButton: some View {
+        Button {
+            Haptics.tap()
+            showingChat = true
+        } label: {
+            Image(systemName: "bubble.left.and.bubble.right.fill")
+                .font(.system(size: 19, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 54, height: 54)
+                .background(Circle().fill(Theme.teal))
+                .shadow(color: Theme.ink.opacity(0.22), radius: 10, x: 0, y: 4)
+        }
+        .padding(.trailing, Space.md)
+        .padding(.bottom, Space.lg)
+        .accessibilityLabel("Ask about this flight")
+    }
 
     private var heroCard: some View {
         FlightHeroCard(leg: leg,

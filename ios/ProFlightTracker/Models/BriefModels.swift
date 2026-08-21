@@ -470,10 +470,21 @@ nonisolated struct BriefBranch: Codable, Sendable {
 /// Ready-to-send LLM prompt from the backend. `system` embeds the analytical
 /// methodology and guardrails and must be sent verbatim; `facts` is the
 /// horizon-filtered fact set — nothing may be added to it.
-nonisolated struct BriefLlmPayload: Codable, Sendable {
+nonisolated struct BriefLlmPayload: Codable, Hashable, Sendable {
     let system: String?
     let user: String?
     let facts: JSONValue?
+}
+
+/// One turn of the per-flight Q&A chat. `role` is "user" or "assistant",
+/// mirrored verbatim to the backend's /api/chat contract. The endpoint is
+/// stateless, so the full turn list is sent on every request.
+nonisolated struct ChatTurn: Codable, Hashable, Sendable, Identifiable {
+    var id: UUID = UUID()
+    let role: String
+    let content: String
+
+    var isUser: Bool { role == "user" }
 }
 
 /// Persisted essence of the last brief run for a tracked flight. This is the
@@ -507,6 +518,10 @@ nonisolated struct StoredBrief: Codable, Hashable, Sendable {
     /// Delay history across the tracker's scheduled checks — optional so
     /// briefs persisted before this field existed still decode.
     var delayTrend: BriefDelayTrend?
+    /// The ready-to-send prompt payload this brief shipped with. Persisted so
+    /// the chat feature can ground follow-up questions in the same
+    /// horizon-filtered facts after a relaunch. Optional so old briefs decode.
+    var llmPayload: BriefLlmPayload?
     var narrative: String?
     var narrativeFailed: Bool
     let runAt: Date
@@ -532,6 +547,7 @@ nonisolated struct StoredBrief: Codable, Hashable, Sendable {
         position = envelope.position
         refreshAfterSeconds = envelope.refreshAfterSeconds
         delayTrend = envelope.delayTrend
+        llmPayload = envelope.llmPayload
         narrative = nil
         narrativeFailed = false
         runAt = Date()
