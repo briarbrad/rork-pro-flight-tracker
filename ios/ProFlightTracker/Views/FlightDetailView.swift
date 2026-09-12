@@ -101,9 +101,15 @@ struct FlightDetailView: View {
     private var briefHasEffects: Bool { brief?.hasEffects == true }
 
     /// Chat needs the brief's grounding facts — same gate the narrative uses.
-    /// Before the brief lands there's nothing to chat about.
+    /// Before the brief lands there's nothing to chat about. Hidden for the
+    /// rest of the session once `/api/chat` (or narrative) returns 501.
     private var chatAvailable: Bool {
-        brief?.llmPayload?.facts != nil
+        brief?.llmPayload?.facts != nil && store.aiAvailable != false
+    }
+
+    /// Inbound/turn only describes the aircraft before THIS flight pushes.
+    private var chainStillRelevant: Bool {
+        HorizonGate.isPreGate(truthPhase?.code)
     }
 
     /// Nothing on file for this flight yet — first open before the initial
@@ -193,7 +199,7 @@ struct FlightDetailView: View {
         }
         .fullScreenCover(isPresented: $showingMap) {
             LiveMapView(flight: flight,
-                        initialPosition: snapshot?.chain?.aircraftPosition,
+                        initialPosition: mapPosition,
                         registration: snapshot?.chain?.tailNumber ?? leg?.registration)
         }
         .fullScreenCover(item: $popup) { DetailPopupHost(popup: $0) }
@@ -239,13 +245,13 @@ struct FlightDetailView: View {
         forecastWindows
 
         // Supporting context — this flight's own aircraft, not raw feeds.
-        if snapshot?.chain != nil {
+        if snapshot?.chain != nil, chainStillRelevant {
             CollapsibleSection(icon: "link", title: "Your aircraft",
                                subtitle: "Inbound leg and turn time") {
                 chainSection(embedded: true)
             }
         }
-        if snapshot?.chain?.aircraftPosition != nil {
+        if mapPosition != nil {
             CollapsibleSection(icon: "map", title: "Live position") {
                 mapSection(embedded: true)
             }
@@ -423,7 +429,7 @@ struct FlightDetailView: View {
     /// disclosure header and content read as one surface.
     @ViewBuilder
     private func chainSection(embedded: Bool) -> some View {
-        if let chain = snapshot?.chain {
+        if let chain = snapshot?.chain, chainStillRelevant {
             // The inbound leg lands at this flight's origin, so its ETA
             // reads in the origin's local time.
             ChainSection(chain: chain, arrivalZone: zones.origin,
@@ -434,8 +440,15 @@ struct FlightDetailView: View {
         }
     }
 
+    /// Freshest stored position: post-pushback track pull, else the chain
+    /// while the inbound turn is still the story.
+    private var mapPosition: AircraftPosition? {
+        snapshot?.lastPosition
+            ?? (chainStillRelevant ? snapshot?.chain?.aircraftPosition : nil)
+    }
+
     private func mapSection(embedded: Bool) -> some View {
-        MapPreviewSection(position: snapshot?.chain?.aircraftPosition,
+        MapPreviewSection(position: mapPosition,
                           flightIdent: flight.ident,
                           embedded: embedded) {
             Haptics.tap()

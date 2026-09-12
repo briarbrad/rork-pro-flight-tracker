@@ -31,4 +31,6 @@ Package.resolved
 # Rork
 .rork/
 .env
+# Locally injected secret overlay. The empty stub is force-tracked so clones
+# compile; `git add .` will not stage a Rork-injected token over it.
 Config.swift

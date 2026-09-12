@@ -2,12 +2,15 @@ import Foundation
 
 nonisolated enum NarrativeError: LocalizedError {
     case notConfigured
+    /// `/api/narrative` returned 501 — `OPENROUTER_API_KEY` is unset.
+    case providerUnavailable
     case emptyResponse
     case http(Int)
 
     var errorDescription: String? {
         switch self {
         case .notConfigured: return "AI narrative is not configured."
+        case .providerUnavailable: return "AI narrative is not configured on the server."
         case .emptyResponse: return "The narrative came back empty."
         case .http(let code):
             switch code {
@@ -39,6 +42,7 @@ nonisolated enum NarrativeService {
             envelope = try await API.narrative(system: system, user: user,
                                                facts: payload.facts)
         } catch let APIError.http(code, _) {
+            if code == 501 { throw NarrativeError.providerUnavailable }
             throw NarrativeError.http(code)
         }
 

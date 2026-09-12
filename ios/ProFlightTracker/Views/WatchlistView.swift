@@ -85,7 +85,7 @@ struct WatchlistView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .refreshable {
-            await store.refreshAll()
+            await store.refreshAll(force: true)
         }
     }
 

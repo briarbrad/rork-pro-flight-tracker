@@ -53,6 +53,10 @@ nonisolated enum API {
         // the single place the backend auth header is attached. The backend
         // accepts requests without it, so an unconfigured token is harmless.
         var request = request
+        // Rork secret `EXPO_PUBLIC_BACKEND_API_TOKEN` → Config.swift.
+        // Must match Railway `API_TOKEN` once `REQUIRE_AUTH=1`. An empty
+        // token is harmless while auth is dormant; AeroAPI / OpenRouter
+        // keys never belong here.
         let token = Config.EXPO_PUBLIC_BACKEND_API_TOKEN
         if !token.isEmpty {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
@@ -66,6 +70,11 @@ nonisolated enum API {
             if let payload = try? JSONDecoder().decode(JSONValue.self, from: data),
                let message = payload["error"]?.stringValue {
                 throw APIError.http(http.statusCode, message)
+            }
+            if http.statusCode == 401, token.isEmpty {
+                throw APIError.http(
+                    401,
+                    "This build has no backend API token. Set the Rork secret EXPO_PUBLIC_BACKEND_API_TOKEN to match Railway API_TOKEN.")
             }
             throw APIError.http(http.statusCode, "")
         }

@@ -19,6 +19,7 @@ nonisolated enum RiskEngine {
                          taf: [String: TafReport]?,
                          lightning: FlightSnapshot.LightningWrapper?,
                          hoursToDeparture: Double? = nil,
+                         phaseCode: String? = nil,
                          excludedSources: Set<String> = []) -> RiskAssessment {
         var signals: [RiskSignal] = []
         let sameDayWindow = HorizonGate.sameDaySourcesCarrySignal(hoursToDeparture: hoursToDeparture)
@@ -31,8 +32,15 @@ nonisolated enum RiskEngine {
         // departure and must not color the flight.
         if sameDayWindow {
             appendFaaSignals(faa, into: &signals)
-            appendChainSignals(chain, into: &signals)
             appendMetarSignals(metar, into: &signals)
+        }
+        // Chain is also skipped after pushback — the turn it describes is over.
+        if HorizonGate.equipmentChainCarriesSignal(hoursToDeparture: hoursToDeparture,
+                                                   phaseCode: phaseCode) {
+            appendChainSignals(chain, into: &signals)
+        }
+        if HorizonGate.originSurfaceOpsCarrySignal(hoursToDeparture: hoursToDeparture,
+                                                   phaseCode: phaseCode) {
             appendLightningSignals(lightning, into: &signals)
         }
 

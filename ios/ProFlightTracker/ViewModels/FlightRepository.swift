@@ -15,10 +15,17 @@ final class FlightRepository {
     var snapshots: [String: FlightSnapshot] = [:]
     var alerts: [FlightAlert] = []
 
-    /// Placeholder token registered with the engine's tracking service.
-    /// Replaced by a real APNs/Expo token when the app ships to devices.
+    /// Push credential registered with the engine's tracking service when
+    /// deliverable. Preview builds leave this empty (or keep a leftover
+    /// `rork-ios-preview-…` placeholder) so `POST /api/track` is gated —
+    /// a non-deliverable token would still make the server spend AeroAPI
+    /// credit on pushes that fail silently. Local notifications still fire
+    /// from `NotificationService` whenever the client refresh runs.
     /// Stays in UserDefaults — it's a scalar, not a data blob.
     let pushToken: String
+
+    /// True when `pushToken` can actually receive server-side Expo pushes.
+    var canRegisterServerTracking: Bool { PushToken.isDeliverable(pushToken) }
 
     private let store: FlightDataStore
 
@@ -27,12 +34,17 @@ final class FlightRepository {
 
         let defaults = UserDefaults.standard
         let tokenKey = "pft.pushToken.v1"
-        if let token = defaults.string(forKey: tokenKey) {
+        if let token = defaults.string(forKey: tokenKey),
+           PushToken.isDeliverable(token) {
             pushToken = token
         } else {
-            let token = "rork-ios-preview-\(UUID().uuidString.lowercased())"
-            defaults.set(token, forKey: tokenKey)
-            pushToken = token
+            // Drop leftover preview placeholders so they can never be
+            // mistaken for a real Expo/APNs token on a later launch.
+            if let leftover = defaults.string(forKey: tokenKey),
+               leftover.hasPrefix(PushToken.previewPrefix) {
+                defaults.removeObject(forKey: tokenKey)
+            }
+            pushToken = ""
         }
 
         store.migrateLegacyUserDefaultsIfNeeded()

@@ -14,9 +14,15 @@ final class AppStore {
     var briefing: Set<String> = []
     /// Flight ids whose AI narrative is still being written.
     var narrativePending: Set<String> = []
+    /// Session latch for `/api/chat` and `/api/narrative`. `nil` = unknown,
+    /// `false` = the server returned 501 (no `OPENROUTER_API_KEY`). Once
+    /// latched off, the chat FAB hides and further narrative calls are skipped
+    /// so a missing AI provider does not keep producing 501 traffic.
+    var aiAvailable: Bool?
 
     init(repository: FlightRepository = FlightRepository()) {
         self.repository = repository
+        withdrawUndeliverableServerTracking()
     }
 
     // MARK: - Repository forwards
@@ -30,6 +36,15 @@ final class AppStore {
     var alerts: [FlightAlert] { repository.alerts }
 
     var pushToken: String { repository.pushToken }
+
+    var canRegisterServerTracking: Bool { repository.canRegisterServerTracking }
+
+    /// Hide chat and skip narrative once the server says OpenRouter is unset.
+    func markAIUnavailable() { aiAvailable = false }
+
+    func markAIAvailable() {
+        if aiAvailable != false { aiAvailable = true }
+    }
 
     var sortedFlights: [TrackedFlight] { repository.sortedFlights }
 
@@ -73,11 +88,16 @@ final class AppStore {
         snapshot.flight = pickBestLeg(status.data?.flights) ?? found
         repository.add(tracked, snapshot: snapshot)
 
-        // Register with the engine's tracker (best effort — server pushes on risk change).
-        let token = pushToken
-        Task.detached {
-            try? await API.startTracking(flight: cleaned, date: dateString,
-                                         intervalMinutes: intervalMinutes, pushToken: token)
+        // Server-side tracking only when a real Expo/APNs token exists.
+        // Preview placeholders would make the Railway worker poll AeroAPI
+        // for pushes that can never be delivered. Local notifications still
+        // fire from the client refresh via NotificationService.
+        if canRegisterServerTracking {
+            let token = pushToken
+            Task.detached {
+                try? await API.startTracking(flight: cleaned, date: dateString,
+                                             intervalMinutes: intervalMinutes, pushToken: token)
+            }
         }
 
         await refresh(tracked, statusEnvelope: status)
@@ -92,11 +112,16 @@ final class AppStore {
 
     // MARK: - Refresh pipeline
 
-    func refreshAll() async {
+    func refreshAll(force: Bool = false) async {
         // Sequential on purpose: AeroAPI allows ~10 result sets/minute.
-        // Final flights (server signalled refresh_after_seconds: null) are
-        // done — refreshing them buys nothing with paid queries.
-        for flight in flights where snapshots[flight.id]?.isFinal != true {
+        // Final flights are done — refreshing them buys nothing with paid
+        // queries. Automatic calls (launch / tab appear) honor the server's
+        // refresh_after_seconds so a distant flight is not re-bought on
+        // every cold start; pull-to-refresh passes force: true.
+        for flight in flights {
+            let snapshot = snapshots[flight.id]
+            if snapshot?.isFinal == true { continue }
+            if !force, snapshot?.autoRefreshDue == false { continue }
             await refresh(flight)
         }
     }
@@ -135,9 +160,14 @@ final class AppStore {
                         snapshot.flight = FlightPhaseDerivation.patchedLeg(leg, with: envelope)
                     }
                 } catch {
-                    // Fallback: the original status path still answers when
-                    // /live is unavailable — no live layer, but the derived
-                    // phase guard keeps every phase display honest.
+                    // Fallback only when /live itself looks unavailable
+                    // (5xx / transport). A 4xx means the engine already
+                    // answered — retrying /status spends 2 more paid queries
+                    // for the same miss (404), the same auth failure (401),
+                    // or a hotter rate limit (429).
+                    if case APIError.http(let code, _) = error, (400...499).contains(code) {
+                        throw error
+                    }
                     print("[Store] /flight/live failed for \(flight.id), falling back to /flight/status: \(error)")
                     let status = try await API.flightStatus(flight: flight.ident, date: flight.date)
                     snapshot.flight = pickBestLeg(status.data?.flights) ?? snapshot.flight
@@ -149,15 +179,30 @@ final class AppStore {
             // stored brief that disagrees no longer describes reality.
             reconcileBrief(&snapshot)
 
-            // Same-day gate: /api/brief deliberately skips the equipment chain
-            // beyond ~12h out, and the chain pull costs paid FlightAware
-            // queries — mirror that gate here so a distant flight costs 1 paid
-            // query per refresh instead of 3.
+            // Same-day + pre-gate: /api/brief skips the equipment chain
+            // beyond ~12h out AND from TAXI_OUT onward (the turn it
+            // describes already happened). The chain pull costs 2–3 paid
+            // queries — mirror both gates so a taxiing or distant flight
+            // stays at 1 paid query per refresh.
             let hours = HorizonGate.hoursToDeparture(snapshot.flight)
+            let phaseCode = snapshot.live?.phase?.code
+                ?? snapshot.flight.map { FlightPhaseDerivation.phase(for: $0).rawValue }
             let withinWindow = HorizonGate.sameDaySourcesCarrySignal(hoursToDeparture: hours)
-            if withinWindow {
+            if HorizonGate.equipmentChainCarriesSignal(hoursToDeparture: hours,
+                                                       phaseCode: phaseCode) {
                 snapshot.chain = (try? await API.flightChain(flight: flight.ident, date: flight.date))?.data
                     ?? snapshot.chain
+                if let position = snapshot.chain?.aircraftPosition {
+                    snapshot.lastPosition = position
+                }
+            } else if HorizonGate.isEnRoute(phaseCode) {
+                // Chain is a waste after pushback, but the day-of map still
+                // needs a dot. /api/flight/track tries ADS-B/OpenSky first
+                // (free) and only falls back to one AeroAPI query on a miss.
+                let reg = snapshot.chain?.tailNumber ?? snapshot.flight?.registration
+                if let position = try? await API.flightTrack(flight: flight.ident, reg: reg).data {
+                    snapshot.lastPosition = position
+                }
             }
 
             // Phase 2 — free feeds keyed by the airports we now know.
@@ -166,18 +211,21 @@ final class AppStore {
             if let dest = snapshot.flight?.destIcao, !airports.contains(dest) { airports.append(dest) }
 
             if !airports.isEmpty {
+                let originIcao = snapshot.flight?.originIcao
                 let destIcao = snapshot.flight?.destIcao
                 async let faaTask = API.faaStatus(icaos: airports)
                 async let metarTask = API.metar(icaos: airports)
                 async let tafTask = API.taf(icaos: airports)
                 async let lightningTask: LightningEnvelope? = {
-                    // Lightning is a right-now phenomenon — signal-less at
-                    // long horizons, so don't even fetch it there.
-                    guard withinWindow, let destIcao else { return nil }
-                    return try? await API.lightning(icao: destIcao)
+                    // Lightning is an origin-ramp now-cast (matches /api/brief).
+                    // Destination strikes don't delay THIS departure, and the
+                    // feed blocks for `duration` seconds — skip it past the
+                    // same-day window and once the aircraft has left the ramp.
+                    guard HorizonGate.originSurfaceOpsCarrySignal(
+                            hoursToDeparture: hours, phaseCode: phaseCode),
+                          let originIcao else { return nil }
+                    return try? await API.lightning(icao: originIcao)
                 }()
-
-                let originIcao = snapshot.flight?.originIcao
                 // TCF is the FAA's own convective product — free, route-scoped,
                 // and only meaningful inside the same-day window (it forecasts
                 // 2–6h ahead). Reference data: it never feeds the verdict.
@@ -316,19 +364,38 @@ final class AppStore {
         repository.snapshots[flight.id] = snapshot
         repository.saveSnapshot(for: flight.id)
 
-        if let payload = envelope.llmPayload {
+        if let payload = envelope.llmPayload, aiAvailable != false {
             let flightId = flight.id
             narrativePending.insert(flightId)
             Task {
                 do {
                     let text = try await NarrativeService.narrative(for: payload)
+                    self.markAIAvailable()
                     self.repository.snapshots[flightId]?.brief?.narrative = text
+                } catch NarrativeError.providerUnavailable {
+                    self.markAIUnavailable()
+                    self.repository.snapshots[flightId]?.brief?.narrativeFailed = true
                 } catch {
                     print("[Store] narrative for \(flightId) failed: \(error.localizedDescription)")
                     self.repository.snapshots[flightId]?.brief?.narrativeFailed = true
                 }
                 self.narrativePending.remove(flightId)
                 self.repository.saveSnapshot(for: flightId)
+            }
+        }
+    }
+
+    /// Previous builds registered `rork-ios-preview-…` tokens with
+    /// `POST /api/track`. Those tracks still burn AeroAPI credit on the
+    /// server even though Expo can never deliver the push. One launch-time
+    /// sweep asks the engine to drop them; 404 (already gone) is ignored.
+    private func withdrawUndeliverableServerTracking() {
+        guard !canRegisterServerTracking else { return }
+        let tracked = repository.flights
+        guard !tracked.isEmpty else { return }
+        Task.detached {
+            for flight in tracked {
+                try? await API.stopTracking(flight: flight.ident, date: flight.date)
             }
         }
     }
@@ -349,6 +416,8 @@ final class AppStore {
 
     private func applyAssessment(for flight: TrackedFlight, snapshot: inout FlightSnapshot) {
         let previous = snapshot.assessment
+        let phaseCode = snapshot.live?.phase?.code
+            ?? snapshot.flight.map { FlightPhaseDerivation.phase(for: $0).rawValue }
         let assessment = RiskEngine.evaluate(
             flight: snapshot.flight,
             chain: snapshot.chain,
@@ -357,6 +426,7 @@ final class AppStore {
             taf: snapshot.taf,
             lightning: snapshot.lightning,
             hoursToDeparture: HorizonGate.hoursToDeparture(snapshot.flight),
+            phaseCode: phaseCode,
             excludedSources: activeExcludedSources(snapshot.brief))
         snapshot.assessment = assessment
 

@@ -29,18 +29,32 @@ struct AddFlightSheet: View {
                     Text("Use the airline code plus number — the engine looks it up on FlightAware.")
                 }
 
-                Section {
-                    Stepper(value: $intervalMinutes, in: 5...240, step: 5) {
-                        HStack {
-                            Text("Server check interval")
-                            Spacer()
-                            Text("\(intervalMinutes) min")
-                                .foregroundStyle(Theme.inkSecondary)
-                                .monospacedDigit()
+                if store.canRegisterServerTracking {
+                    Section {
+                        Stepper(value: $intervalMinutes, in: 5...240, step: 5) {
+                            HStack {
+                                Text("Server check interval")
+                                Spacer()
+                                Text("\(intervalMinutes) min")
+                                    .foregroundStyle(Theme.inkSecondary)
+                                    .monospacedDigit()
+                            }
                         }
+                    } footer: {
+                        Text("How often the engine re-checks this flight in the background. Shorter intervals spend more FlightAware credit.")
                     }
-                } footer: {
-                    Text("How often the engine re-checks this flight in the background. Shorter intervals spend more FlightAware credit.")
+                } else {
+                    Section {
+                        Label {
+                            Text("On-device alerts only")
+                        } icon: {
+                            LucideIcon(name: "bell", size: 16, fallback: "bell")
+                        }
+                        .font(TypeScale.body)
+                        .foregroundStyle(Theme.inkSecondary)
+                    } footer: {
+                        Text("Server-side push tracking stays off until this build has a real Expo push token. A preview placeholder would make the engine spend FlightAware credit on notifications that can never arrive. Local alerts still fire when you refresh.")
+                    }
                 }
 
                 if let errorMessage {

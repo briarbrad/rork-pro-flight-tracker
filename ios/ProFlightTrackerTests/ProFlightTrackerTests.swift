@@ -64,6 +64,101 @@ struct NarrativeOutlookTests {
     }
 }
 
+/// Push-token gating: preview placeholders must never look deliverable.
+struct PushTokenTests {
+
+    @Test func previewPlaceholderIsNotDeliverable() {
+        #expect(!PushToken.isDeliverable("rork-ios-preview-\(UUID().uuidString.lowercased())"))
+        #expect(!PushToken.isDeliverable(""))
+        #expect(!PushToken.isDeliverable("   "))
+    }
+
+    @Test func expoTokenIsDeliverable() {
+        #expect(PushToken.isDeliverable("ExponentPushToken[abcdefghijklmnopqrstuv]"))
+    }
+}
+
+/// Horizon gates must match the brief's query budget: no paid chain after
+/// pushback or past 12h; origin lightning only while still on the ramp.
+struct HorizonGateTests {
+
+    @Test func sameDayWindow() {
+        #expect(HorizonGate.sameDaySourcesCarrySignal(hoursToDeparture: nil))
+        #expect(HorizonGate.sameDaySourcesCarrySignal(hoursToDeparture: 6))
+        #expect(HorizonGate.sameDaySourcesCarrySignal(hoursToDeparture: 12))
+        #expect(!HorizonGate.sameDaySourcesCarrySignal(hoursToDeparture: 12.1))
+        #expect(HorizonGate.sameDaySourcesCarrySignal(hoursToDeparture: -2))
+    }
+
+    @Test func equipmentChainSkipsDistantAndPostPushback() {
+        #expect(HorizonGate.equipmentChainCarriesSignal(hoursToDeparture: 8, phaseCode: "PRE_GATE"))
+        #expect(!HorizonGate.equipmentChainCarriesSignal(hoursToDeparture: 15, phaseCode: "PRE_GATE"))
+        #expect(!HorizonGate.equipmentChainCarriesSignal(hoursToDeparture: 2, phaseCode: "TAXI_OUT"))
+        #expect(!HorizonGate.equipmentChainCarriesSignal(hoursToDeparture: 1, phaseCode: "AIRBORNE"))
+        #expect(HorizonGate.equipmentChainCarriesSignal(hoursToDeparture: 4, phaseCode: nil))
+    }
+
+    @Test func originLightningFollowsRamp() {
+        #expect(HorizonGate.originSurfaceOpsCarrySignal(hoursToDeparture: 3, phaseCode: "PRE_GATE"))
+        #expect(HorizonGate.originSurfaceOpsCarrySignal(hoursToDeparture: 1, phaseCode: "TAXI_OUT"))
+        #expect(!HorizonGate.originSurfaceOpsCarrySignal(hoursToDeparture: 1, phaseCode: "AIRBORNE"))
+        #expect(!HorizonGate.originSurfaceOpsCarrySignal(hoursToDeparture: 20, phaseCode: "PRE_GATE"))
+    }
+
+    @Test func routeLeavesConus() {
+        #expect(!HorizonGate.routeLeavesConus(origin: "KJFK", dest: "KLAX"))
+        #expect(HorizonGate.routeLeavesConus(origin: "KJFK", dest: "EGLL"))
+        #expect(HorizonGate.routeLeavesConus(origin: "PHNL", dest: "KLAX"))
+        #expect(!HorizonGate.routeLeavesConus(origin: nil, dest: nil))
+    }
+
+    @Test func phaseHelpers() {
+        #expect(HorizonGate.isPreGate(nil))
+        #expect(HorizonGate.isPreGate("PRE_GATE"))
+        #expect(!HorizonGate.isPreGate("TAXI_OUT"))
+        #expect(HorizonGate.isEnRoute("AIRBORNE"))
+        #expect(!HorizonGate.isEnRoute("ARRIVED"))
+    }
+}
+
+/// Finished flights must stop automatic paid refreshes even without a live layer.
+struct FlightSnapshotFinalityTests {
+
+    @Test func arrivedMilestoneIsFinalWithoutLiveLayer() throws {
+        var snapshot = FlightSnapshot()
+        snapshot.flight = try Self.decodeFlight(["ident": "DL244", "actual_in": "2026-09-12T18:00:00Z"])
+        #expect(snapshot.isFinal)
+        #expect(!snapshot.autoRefreshDue)
+    }
+
+    @Test func cancelledIsFinal() throws {
+        var snapshot = FlightSnapshot()
+        snapshot.flight = try Self.decodeFlight(["ident": "DL244", "cancelled": true])
+        #expect(snapshot.isFinal)
+    }
+
+    @Test func scheduledFlightIsNotFinal() throws {
+        var snapshot = FlightSnapshot()
+        snapshot.flight = try Self.decodeFlight([
+            "ident": "DL244",
+            "scheduled_out": "2026-09-13T18:00:00Z",
+        ])
+        #expect(!snapshot.isFinal)
+    }
+
+    private static func decodeFlight(_ object: [String: Any]) throws -> AeroFlight {
+        let data = try JSONSerialization.data(withJSONObject: object)
+        return try JSONDecoder().decode(AeroFlight.self, from: data)
+    }
+}
+
+struct ChatErrorTests {
+
+    @Test func fiveOhOneIsNotConfigured() {
+        #expect(ChatError.notConfigured.errorDescription == "AI chat is currently unavailable.")
+    }
+}
+
 /// Trend rendering guards: one check is a data point, not a trend.
 struct DelayTrendModelTests {
 
