@@ -44,6 +44,15 @@ struct FlightStoryCard: View {
             .font(TypeScale.headline)
             .foregroundStyle(Theme.ink)
             .fixedSize(horizontal: false, vertical: true)
+
+        if let confidence = story.outlook?.confidence?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !confidence.isEmpty {
+            Text("\(confidence.capitalized) confidence — a forecast, not a hard delay.")
+                .font(TypeScale.caption)
+                .foregroundStyle(Theme.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
     @ViewBuilder
@@ -55,25 +64,25 @@ struct FlightStoryCard: View {
             .foregroundStyle(Theme.teal)
 
         Text("Here's what I think will happen")
-            .font(TypeScale.headline)
-            .foregroundStyle(Theme.ink)
+            .font(TypeScale.caption)
+            .foregroundStyle(Theme.inkSecondary)
 
         Text(story.heroHeadline
              ?? (story.simpleSummary == nil ? fallbackPrediction?.headline : nil)
              ?? "Checking this flight")
-            .font(TypeScale.bodyStrong)
+            .font(TypeScale.headline)
             .foregroundStyle(Theme.ink)
             .fixedSize(horizontal: false, vertical: true)
 
         if let body = story.heroBody, !body.isEmpty {
             Text(body)
-                .font(TypeScale.body)
-                .foregroundStyle(Theme.inkSecondary)
+                .font(TypeScale.sectionTitle)
+                .foregroundStyle(Theme.ink)
                 .fixedSize(horizontal: false, vertical: true)
         } else if story.simpleSummary == nil, let body = fallbackPrediction?.body, !body.isEmpty {
             Text(body)
-                .font(TypeScale.body)
-                .foregroundStyle(Theme.inkSecondary)
+                .font(TypeScale.sectionTitle)
+                .foregroundStyle(Theme.ink)
                 .fixedSize(horizontal: false, vertical: true)
         }
 
