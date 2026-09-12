@@ -7,9 +7,10 @@ import SwiftUI
 /// Categories and escalation are decided server-side; this view renders them.
 struct ForecastWindowSection: View {
     let windows: BriefTafWindows
+    var embedded: Bool = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        let content = VStack(alignment: .leading, spacing: 14) {
             SectionHeader(icon: "cloud-sun", title: "Forecast in your window")
 
             Text("What's forecast within an hour either side of the predicted times above — not the current weather.")
@@ -26,7 +27,11 @@ struct ForecastWindowSection: View {
                 WindowBlock(role: "Arrival window", window: arrival)
             }
         }
-        .cardStyle()
+        if embedded {
+            content
+        } else {
+            content.cardStyle()
+        }
     }
 }
 

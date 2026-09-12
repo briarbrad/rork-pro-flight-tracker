@@ -26,6 +26,11 @@ nonisolated struct BriefEnvelope: Codable, Sendable {
     /// backends (and unexpected shapes) still decode — parsed into
     /// `BriefSimpleSummary` on persist.
     let simpleSummary: JSONValue?
+    /// v1.13 story layer — optional so older backends still decode.
+    let status: StoryStatus?
+    let impactMinutes: Int?
+    let causes: [StoryCause]?
+    let outlook: StoryOutlook?
 
     enum CodingKeys: String, CodingKey {
         case flight, date, horizon, verdict, effects, timezones, phase, taxi, position
@@ -39,6 +44,64 @@ nonisolated struct BriefEnvelope: Codable, Sendable {
         case delayTrend = "delay_trend"
         case aeroapiQueriesUsed = "aeroapi_queries_used"
         case simpleSummary = "simple_summary"
+        case status, causes, outlook
+        case impactMinutes
+        case impact_minutes
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        flight = try container.decodeIfPresent(String.self, forKey: .flight)
+        date = try container.decodeIfPresent(String.self, forKey: .date)
+        phase = try container.decodeIfPresent(BriefPhase.self, forKey: .phase)
+        taxi = try container.decodeIfPresent(BriefTaxi.self, forKey: .taxi)
+        position = try container.decodeIfPresent(BriefPosition.self, forKey: .position)
+        horizon = try container.decodeIfPresent(BriefHorizon.self, forKey: .horizon)
+        verdict = try container.decodeIfPresent(BriefVerdict.self, forKey: .verdict)
+        branchClassification = try container.decodeIfPresent(BriefBranch.self, forKey: .branchClassification)
+        predictedTimes = try container.decodeIfPresent(BriefPredictedTimes.self, forKey: .predictedTimes)
+        tafWindows = try container.decodeIfPresent(BriefTafWindows.self, forKey: .tafWindows)
+        timezones = try container.decodeIfPresent(BriefTimezones.self, forKey: .timezones)
+        effects = try container.decodeIfPresent([BriefEffect].self, forKey: .effects)
+        sourcesConsulted = try container.decodeIfPresent([String].self, forKey: .sourcesConsulted)
+        sourcesExcluded = try container.decodeIfPresent([String: String].self, forKey: .sourcesExcluded)
+        refreshAfterSeconds = try container.decodeIfPresent(Int.self, forKey: .refreshAfterSeconds)
+        llmPayload = try container.decodeIfPresent(BriefLlmPayload.self, forKey: .llmPayload)
+        delayTrend = try container.decodeIfPresent(BriefDelayTrend.self, forKey: .delayTrend)
+        aeroapiQueriesUsed = try container.decodeIfPresent(Int.self, forKey: .aeroapiQueriesUsed)
+        simpleSummary = try container.decodeIfPresent(JSONValue.self, forKey: .simpleSummary)
+        status = try container.decodeIfPresent(StoryStatus.self, forKey: .status)
+        causes = try container.decodeIfPresent([StoryCause].self, forKey: .causes)
+        outlook = try container.decodeIfPresent(StoryOutlook.self, forKey: .outlook)
+        impactMinutes = try container.decodeIfPresent(Int.self, forKey: .impactMinutes)
+            ?? container.decodeIfPresent(Int.self, forKey: .impact_minutes)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(flight, forKey: .flight)
+        try container.encodeIfPresent(date, forKey: .date)
+        try container.encodeIfPresent(phase, forKey: .phase)
+        try container.encodeIfPresent(taxi, forKey: .taxi)
+        try container.encodeIfPresent(position, forKey: .position)
+        try container.encodeIfPresent(horizon, forKey: .horizon)
+        try container.encodeIfPresent(verdict, forKey: .verdict)
+        try container.encodeIfPresent(branchClassification, forKey: .branchClassification)
+        try container.encodeIfPresent(predictedTimes, forKey: .predictedTimes)
+        try container.encodeIfPresent(tafWindows, forKey: .tafWindows)
+        try container.encodeIfPresent(timezones, forKey: .timezones)
+        try container.encodeIfPresent(effects, forKey: .effects)
+        try container.encodeIfPresent(sourcesConsulted, forKey: .sourcesConsulted)
+        try container.encodeIfPresent(sourcesExcluded, forKey: .sourcesExcluded)
+        try container.encodeIfPresent(refreshAfterSeconds, forKey: .refreshAfterSeconds)
+        try container.encodeIfPresent(llmPayload, forKey: .llmPayload)
+        try container.encodeIfPresent(delayTrend, forKey: .delayTrend)
+        try container.encodeIfPresent(aeroapiQueriesUsed, forKey: .aeroapiQueriesUsed)
+        try container.encodeIfPresent(simpleSummary, forKey: .simpleSummary)
+        try container.encodeIfPresent(status, forKey: .status)
+        try container.encodeIfPresent(impactMinutes, forKey: .impactMinutes)
+        try container.encodeIfPresent(causes, forKey: .causes)
+        try container.encodeIfPresent(outlook, forKey: .outlook)
     }
 }
 
@@ -531,6 +594,12 @@ nonisolated struct StoredBrief: Codable, Hashable, Sendable {
     var narrativeFailed: Bool
     /// Optional so briefs persisted before `simple_summary` existed still decode.
     var simpleSummary: BriefSimpleSummary?
+    /// v1.13 story layer — optional so briefs persisted before these
+    /// fields existed still decode.
+    var status: StoryStatus?
+    var impactMinutes: Int?
+    var causes: [StoryCause]?
+    var outlook: StoryOutlook?
     let runAt: Date
 
     init(envelope: BriefEnvelope) {
@@ -558,6 +627,10 @@ nonisolated struct StoredBrief: Codable, Hashable, Sendable {
         narrative = nil
         narrativeFailed = false
         simpleSummary = BriefSimpleSummary.parse(envelope.simpleSummary)
+        status = envelope.status
+        impactMinutes = envelope.impactMinutes
+        causes = envelope.causes
+        outlook = envelope.outlook
         runAt = Date()
     }
 

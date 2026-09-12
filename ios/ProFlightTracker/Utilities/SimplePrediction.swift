@@ -113,11 +113,19 @@ nonisolated enum SimplePredictionComposer {
                 confidenceNote: summary.confidenceNote ?? composedConfidenceNote(brief: brief),
                 fromServer: true)
         }
+        let story = FlightStory.resolve(brief: brief, live: live)
+        if story.usesOutlook, let headline = story.outlook?.headline, !headline.isEmpty {
+            return SimplePrediction(
+                headline: headline,
+                body: outlookBody(story, fallback: composedBody(brief: brief, live: live, zones: zones)),
+                confidenceNote: outlookConfidenceNote(story) ?? composedConfidenceNote(brief: brief),
+                fromServer: true)
+        }
         return SimplePrediction(
-            headline: defaultHeadline(brief: brief, live: live),
+            headline: story.status?.displayLabel ?? defaultHeadline(brief: brief, live: live),
             body: composedBody(brief: brief, live: live, zones: zones),
             confidenceNote: composedConfidenceNote(brief: brief),
-            fromServer: false)
+            fromServer: story.status != nil)
     }
 
     static func risk(brief: StoredBrief?, live: StoredLive?) -> SimpleRiskTreatment {
@@ -137,7 +145,9 @@ nonisolated enum SimplePredictionComposer {
     }
 
     /// Watchlist / trip-card chip — one status, no signal clutter.
-    /// LOW/LOW and "no brief yet" say "Scheduled", never "On time".
+    /// Prefers backend `status.label`. LOW/LOW and "no brief yet" say
+    /// "Scheduled", never "On time". Outlook-applicable stays "Too early
+    /// to call" (or the server label) — never a fake green on-time.
     static func cardStatus(brief: StoredBrief?,
                            live: StoredLive?,
                            phase: BriefPhase?,
@@ -152,6 +162,20 @@ nonisolated enum SimplePredictionComposer {
         case "AIRBORNE": return ("In the air", .info)
         case "TAXI_OUT", "TAXI_IN": return ("Taxiing", .watch)
         default: break
+        }
+
+        let story = FlightStory.resolve(brief: brief, live: live)
+        if let label = story.status?.displayLabel {
+            if story.usesOutlook {
+                if let risk = story.outlook?.risk, risk.rank > RiskLevel.low.rank {
+                    return (label, ChipTone.from(risk))
+                }
+                return (label, .neutral)
+            }
+            if story.status?.statusCode == "ON_TIME" {
+                return (label, .ok)
+            }
+            return (label, story.status?.chipTone ?? .neutral)
         }
 
         let treatment = risk(brief: brief, live: live)
@@ -214,6 +238,22 @@ nonisolated enum SimplePredictionComposer {
             return "I don't have a firm prediction yet — check back closer to departure."
         }
         return uniqueSentences(parts).joined(separator: " ")
+    }
+
+    private static func outlookBody(_ story: FlightStory, fallback: String) -> String {
+        let whys = story.orderedCauses.compactMap { cause -> String? in
+            if let why = cause.why, !why.isEmpty { return why }
+            return cause.label
+        }
+        if let first = whys.first, !first.isEmpty { return first }
+        return fallback
+    }
+
+    private static func outlookConfidenceNote(_ story: FlightStory) -> String? {
+        guard let confidence = story.outlook?.confidence, !confidence.isEmpty else {
+            return nil
+        }
+        return "\(confidence.capitalized) confidence — a forecast, not a live delay."
     }
 
     private static func composedConfidenceNote(brief: StoredBrief?) -> String? {

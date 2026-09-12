@@ -1,18 +1,20 @@
 import SwiftUI
 
 /// Phase-adaptive flight report. Pro mode is organised as three layers so
-/// the screen reads "answer, then why, then evidence":
-/// 1. ANSWER — hero status card (which owns the unified trip timeline —
-///    ALL milestone timing renders there), plus the EDCT slot when present.
-/// 2. WHY / ACTION — the brief verdict with its effects[] explanation and
-///    promoted recommended action, fallback signals, and the forecast
-///    windows that can move the verdict.
-/// 3. EVIDENCE — one collapsed drawer holding the raw source data
-///    (METAR/TAF, FAA programs, SIGMETs, ops feeds) for users who dig in.
+/// the screen reads "this is delayed because X", then the clocks, then
+/// raw feeds:
+/// 1. STORY — backend `status` / `outlook` hero + `causes[]` (or
+///    `outlook.causes` when `outlook.applicable`). Bind these; don't
+///    re-derive. The trip-timeline card still owns ALL milestone timing.
+/// 2. TIMES / ACTION — EDCT, predicted times, brief re-run, fallback
+///    signals only when the story layer is missing.
+/// 3. SOURCES — one collapsed drawer for raw feeds (METAR/TAF, FAA,
+///    SIGMETs, ops) plus the deterministic `effects[]` evidence.
 /// Phase still shapes the answer layer (map promoted day-of; landed /
 /// cancelled collapses to a closure card — history is never restated as
 /// prediction). Simple mode is an alternate layout path on the same
-/// snapshots — prediction, times, one risk line, map — not a forked app.
+/// snapshots — `simple_summary` first, then the same cause chain, no
+/// Sources drawer.
 struct FlightDetailView: View {
     @Environment(AppStore.self) private var store
     let flight: TrackedFlight
@@ -101,6 +103,14 @@ struct FlightDetailView: View {
 
     private var briefHasEffects: Bool { brief?.hasEffects == true }
 
+    /// v1.13 story layer — outlook when applicable, else status + causes.
+    private var story: FlightStory {
+        FlightStory.resolve(brief: brief, live: live)
+    }
+
+    /// Older backends omit the story keys; keep the pre-1.13 layout then.
+    private var hasStoryLayer: Bool { story.hasContent }
+
     /// Chat needs the brief's grounding facts — same gate the narrative uses.
     /// Before the brief lands there's nothing to chat about. Hidden for the
     /// rest of the session once `/api/chat` (or narrative) returns 501.
@@ -127,9 +137,11 @@ struct FlightDetailView: View {
 
     /// A stale brief must never suppress CURRENT live evidence: when the
     /// narrative is out of date but the live layer observed effects, they
-    /// surface under their own "Since your brief" card.
+    /// surface under their own "Since your brief" card. Skip when the
+    /// story card is already showing live causes.
     private var showLiveEffectsSection: Bool {
-        brief != nil && brief?.isStale == true && !liveEffects.isEmpty
+        !hasStoryLayer
+            && brief != nil && brief?.isStale == true && !liveEffects.isEmpty
     }
 
     private var conditionsTitle: String {
@@ -263,6 +275,14 @@ struct FlightDetailView: View {
                     Task { await store.refresh(flight) }
                 }
 
+            if story.hasCauses {
+                CauseChainView(causes: story.orderedCauses,
+                               title: story.usesOutlook
+                                   ? "What's on the forecast"
+                                   : "Why this flight",
+                               embedded: false)
+            }
+
             SimpleTimesCard(times: live?.predictedTimes ?? brief?.predictedTimes,
                             leg: leg,
                             zones: zones)
@@ -286,16 +306,16 @@ struct FlightDetailView: View {
 
     @ViewBuilder
     private var preFlightLayout: some View {
-        // 1 · ANSWER — the status at a glance; the hero's trip timeline is
-        // the one place all milestone timing renders.
+        // 1 · STORY — outlook when applicable, else status + causes.
+        storyHero
         heroCard
         edctBannerView
         atfmCard(embedded: false)
 
-        // 2 · WHY / ACTION — what's driving the verdict and what to do.
-        BriefSection(flight: flight)
+        // 2 · TIMES / ACTION — brief re-run; fallback signals only when
+        // the story layer is missing (older backend).
+        BriefSection(flight: flight, hideEffects: hasStoryLayer)
         signalsSection
-        forecastWindows
 
         // Supporting context — this flight's own aircraft, not raw feeds.
         if snapshot?.chain != nil, chainStillRelevant {
@@ -310,8 +330,8 @@ struct FlightDetailView: View {
             }
         }
 
-        // 3 · EVIDENCE — raw source data, collapsed until asked for.
-        evidenceDrawer
+        // 3 · SOURCES — raw feeds + effects[], collapsed until asked for.
+        sourcesDrawer
         NarrativeSection(flight: flight)
         alertHistory(embedded: false)
     }
@@ -320,22 +340,20 @@ struct FlightDetailView: View {
 
     @ViewBuilder
     private var dayOfLayout: some View {
-        // 1 · ANSWER — live map is part of the at-a-glance picture day-of
-        // (renders only when a position exists).
+        // 1 · STORY — live status + causes; map is part of the picture.
+        storyHero
         heroCard
         mapSection(embedded: false)
         edctBannerView
         atfmCard(embedded: false)
-        flowSection(embedded: false)
 
-        // 2 · WHY / ACTION.
-        BriefSection(flight: flight)
+        // 2 · TIMES / ACTION.
+        BriefSection(flight: flight, hideEffects: hasStoryLayer)
         signalsSection
-        forecastWindows
         chainSection(embedded: false)
 
-        // 3 · EVIDENCE.
-        evidenceDrawer
+        // 3 · SOURCES — flow and forecast windows live here, not at the top.
+        sourcesDrawer
         NarrativeSection(flight: flight)
         alertHistory(embedded: false)
     }
@@ -377,6 +395,13 @@ struct FlightDetailView: View {
         .accessibilityLabel("Ask about this flight")
     }
 
+    @ViewBuilder
+    private var storyHero: some View {
+        if hasStoryLayer {
+            FlightStoryCard(story: story)
+        }
+    }
+
     private var heroCard: some View {
         FlightHeroCard(leg: leg,
                        phase: truthPhase,
@@ -387,7 +412,9 @@ struct FlightDetailView: View {
                        live: live,
                        zones: zones,
                        asOf: heroAsOf,
-                       isStale: heroIsStale) {
+                       isStale: heroIsStale,
+                       showsVerdictBadge: !hasStoryLayer,
+                       showsNarrativeOutlook: !hasStoryLayer) {
             Task { await store.refresh(flight) }
         }
     }
@@ -408,21 +435,20 @@ struct FlightDetailView: View {
     @ViewBuilder
     private var forecastWindows: some View {
         if let windows = brief?.tafWindows, brief?.hasForecastWindows == true {
-            ForecastWindowSection(windows: windows)
+            ForecastWindowSection(windows: windows, embedded: true)
         }
     }
 
-    /// Once a brief supplies effects[], those replace the client signal list
-    /// as the explanation on this screen — but only while the brief is
-    /// current. A STALE brief's effects never hide live evidence: current
-    /// live-layer effects render under "Since your brief" so the user still
-    /// sees what's true right now.
+    /// Once a brief supplies effects[] — or the v1.13 story layer supplies
+    /// causes[] — those replace the client signal list as the explanation.
+    /// A STALE brief's effects never hide live evidence unless the story
+    /// card is already showing live causes.
     @ViewBuilder
     private var signalsSection: some View {
         if showLiveEffectsSection {
             liveEffectsCard
         }
-        if !briefHasEffects {
+        if !briefHasEffects && !hasStoryLayer {
             SignalListSection(title: "Flight status signals",
                               icon: "activity",
                               caption: "From the airline's status feed and this aircraft's own chain. Run the brief for the full cause → effect picture.",
@@ -456,16 +482,22 @@ struct FlightDetailView: View {
         .cardStyle()
     }
 
-    /// Layer 3: the evidence drawer. All the raw source data — decoded
-    /// METAR/TAF + FAA program details, SIGMETs/convective hazards, and the
-    /// on-demand ops feeds — lives behind ONE collapsed disclosure instead
-    /// of inline peer cards. Same data, same lazy loading (ops feeds still
-    /// fire only when expanded); only the hierarchy changed.
+    /// Layer 3: Sources. Raw feeds stay collapsed so they never compete
+    /// with the story. Same lazy loading (ops / flow still fire only when
+    /// expanded). Effects[] live here once the story card owns the "why".
     @ViewBuilder
-    private var evidenceDrawer: some View {
-        if leg?.originIcao != nil || leg?.destIcao != nil {
-            CollapsibleSection(icon: "layers", title: "Evidence & source data",
-                               subtitle: "METAR/TAF · FAA programs · SIGMETs · flow · ops") {
+    private var sourcesDrawer: some View {
+        if leg?.originIcao != nil || leg?.destIcao != nil || briefHasEffects {
+            CollapsibleSection(icon: "layers", title: "Sources",
+                               subtitle: "Evidence · METAR/TAF · FAA · SIGMETs · flow · ops") {
+                if hasStoryLayer, briefHasEffects, let effects = brief?.orderedEffects {
+                    EffectsList(effects: effects,
+                                unexplainedDeltaNote: DeltaExplainer(
+                                    times: brief?.predictedTimes,
+                                    effects: brief?.effects)
+                                    .unexplainedDeltaNote(for: brief?.predictedTimes))
+                }
+                forecastWindows
                 weatherSection(embedded: true)
                 EnrouteHazardsSection(convective: snapshot?.convective,
                                       internationalSigmets: snapshot?.internationalSigmets,
@@ -474,9 +506,7 @@ struct FlightDetailView: View {
                 if let guidance = snapshot?.modelGuidance, guidance.hasContent {
                     ModelGuidanceSection(guidance: guidance, embedded: true)
                 }
-                if mode == .preFlight {
-                    flowSection(embedded: true)
-                }
+                flowSection(embedded: true)
                 // Already horizon-gated: locks itself beyond same-day.
                 OpsSection(originIcao: leg?.originIcao,
                            destIcao: leg?.destIcao,

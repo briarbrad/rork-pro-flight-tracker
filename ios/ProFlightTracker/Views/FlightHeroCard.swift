@@ -25,6 +25,11 @@ struct FlightHeroCard: View {
     /// this with wall-clock time, and the freshness caption renders from it.
     let asOf: Date?
     let isStale: Bool
+    /// Hide when the story card already owns the answer (status / outlook).
+    var showsVerdictBadge: Bool = true
+    /// Hide when structured `outlook` is the hero — don't also promote the
+    /// narrative's forward-looking line.
+    var showsNarrativeOutlook: Bool = true
     let onRefresh: () -> Void
 
     var body: some View {
@@ -54,8 +59,10 @@ struct FlightHeroCard: View {
             // own "what would change the picture" line. Suppressed once the
             // flight is over — history must never restate as prediction.
             if phase?.isOver != true,
-               DelayOutlookView.hasContent(trend: delayTrend, outlook: outlookLine) {
-                DelayOutlookView(trend: delayTrend, outlook: outlookLine)
+               DelayOutlookView.hasContent(trend: delayTrend,
+                                           outlook: showsNarrativeOutlook ? outlookLine : nil) {
+                DelayOutlookView(trend: delayTrend,
+                                 outlook: showsNarrativeOutlook ? outlookLine : nil)
             }
 
             // Taxi assessment — whether this wait is abnormal for THIS
@@ -105,8 +112,11 @@ struct FlightHeroCard: View {
             Spacer()
             // Brief verdict is authoritative while fresh; the live
             // status_only verdict may escalate over it, and governs once
-            // the brief goes stale.
-            FlightVerdictBadge(brief: brief, live: live, defineOnTap: true)
+            // the brief goes stale. Hidden when the story card already
+            // owns the answer.
+            if showsVerdictBadge {
+                FlightVerdictBadge(brief: brief, live: live, defineOnTap: true)
+            }
         }
     }
 
