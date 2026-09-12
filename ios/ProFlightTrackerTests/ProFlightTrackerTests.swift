@@ -687,7 +687,7 @@ struct StoryLayerDecodeTests {
         #expect(stored.impactMinutes == 16)
         #expect(stored.causes?.count == 2)
         #expect(stored.causes?.first?.label == "FAA takeoff slot")
-        #expect(stored.causes?.first?.severityLabel == "Needs attention")
+        #expect(stored.causes?.first?.severitySpoken == "Needs attention")
         #expect(stored.outlook?.isApplicable == false)
     }
 
@@ -764,15 +764,15 @@ struct FlightStoryResolverTests {
         ])
         let story = FlightStory.resolve(brief: stored, live: nil)
         #expect(story.usesOutlook)
-        #expect(story.outlook?.headline == "Elevated delay risk · thunderstorms")
+        #expect(story.heroHeadline == "Elevated delay risk · thunderstorms")
+        #expect(story.heroBody == nil)
+        #expect(story.statusSubline == nil)
         #expect(story.causes.first?.label == "Thunderstorms around departure")
-        #expect(story.impactMinutes == nil)
-        #expect(story.status?.displayLabel == "Too early to call")
+        #expect(story.hasCauses)
 
         let prediction = SimplePredictionComposer.prediction(brief: stored, live: nil)
         #expect(prediction.fromServer)
         #expect(prediction.headline == "Elevated delay risk · thunderstorms")
-        #expect(prediction.body.contains("Thunderstorms"))
 
         let card = SimplePredictionComposer.cardStatus(
             brief: stored, live: nil, phase: stored.phase, leg: nil)
@@ -802,8 +802,9 @@ struct FlightStoryResolverTests {
         #expect(!story.usesOutlook)
         #expect(story.status?.displayLabel == "Delayed 16m")
         #expect(story.impactMinutes == 16)
+        #expect(story.statusSubline == "Delayed 16m · +16 min")
         #expect(story.causes.first?.label == "FAA takeoff slot")
-        #expect(story.causes.first?.severityLabel == "Needs attention")
+        #expect(story.causes.first?.severitySpoken == "Needs attention")
 
         let card = SimplePredictionComposer.cardStatus(
             brief: stored, live: nil, phase: nil, leg: nil)
@@ -852,7 +853,7 @@ struct FlightStoryResolverTests {
         #expect(story.outlook?.headline == "Low delay risk on the forecast")
     }
 
-    @Test func simpleSummaryStillWinsThePredictionCard() throws {
+    @Test func outlookHeadlineBeatsSimpleSummary() throws {
         let stored = try BriefEnvelopeSimpleSummaryTests.brief([
             "simple_summary": [
                 "headline": "Server headline",
@@ -861,28 +862,113 @@ struct FlightStoryResolverTests {
             "outlook": [
                 "applicable": true,
                 "riskLevel": "MODERATE",
-                "headline": "Should not replace simple_summary",
+                "headline": "Elevated delay risk · thunderstorms",
                 "causes": [
                     ["label": "Thunderstorms", "why": "Forecast.",
                      "severity": "ACTION", "source": "taf"],
                 ],
             ],
         ])
+        let story = FlightStory.resolve(brief: stored, live: nil)
+        #expect(story.usesOutlook)
+        #expect(story.heroHeadline == "Elevated delay risk · thunderstorms")
         let prediction = SimplePredictionComposer.prediction(brief: stored, live: nil)
-        #expect(prediction.headline == "Server headline")
-        #expect(prediction.body == "Server body")
+        #expect(prediction.headline == "Elevated delay risk · thunderstorms")
     }
 
-    @Test func severityIsNamedNotColorOnly() {
+    @Test func simpleSummaryIsHeroWhenOutlookNotApplicable() throws {
+        let stored = try BriefEnvelopeSimpleSummaryTests.brief([
+            "simple_summary": [
+                "headline": "Likely 15 min late leaving JFK",
+                "what_i_think": "The FAA assigned a takeoff time.",
+            ],
+            "status": ["code": "DELAYED", "label": "Delayed 16m"],
+            "impactMinutes": 16,
+            "causes": [
+                ["label": "FAA takeoff slot", "why": "Wait for the slot.",
+                 "severity": "ACTION", "source": "swim_tfms"],
+            ],
+            "outlook": ["applicable": false],
+        ])
+        let story = FlightStory.resolve(brief: stored, live: nil)
+        #expect(!story.usesOutlook)
+        #expect(story.heroHeadline == "Likely 15 min late leaving JFK")
+        #expect(story.heroBody == "The FAA assigned a takeoff time.")
+        #expect(story.statusSubline == "Delayed 16m · +16 min")
+        #expect(story.causes.first?.label == "FAA takeoff slot")
+    }
+
+    @Test func emptyCausesHideTheChain() throws {
+        let stored = try BriefEnvelopeSimpleSummaryTests.brief([
+            "simple_summary": ["headline": "On track", "what_i_think": "Nothing in the way."],
+            "status": ["code": "ON_TIME", "label": "On time"],
+            "causes": [],
+            "outlook": ["applicable": false],
+        ])
+        let story = FlightStory.resolve(brief: stored, live: nil)
+        #expect(!story.hasCauses)
+        #expect(story.orderedCauses.isEmpty)
+        #expect(story.hasContent)
+    }
+
+    @Test func severityIsWeightNotChrome() {
         let action = StoryCause(label: "Ground stop at LGA", why: "Nothing can land.",
                                 severity: "ACTION", source: "faa_status")
         let watch = StoryCause(label: "Inbound turn is tight", why: "Any further slip transfers.",
                                severity: "WATCH", source: "equipment_chain")
         let info = StoryCause(label: "GDP at JFK", why: "Arrival metering.",
                               severity: "INFO", source: "faa_status")
-        #expect(action.severityLabel == "Needs attention")
-        #expect(watch.severityLabel == "Watch")
-        #expect(info.severityLabel == "Context")
+        #expect(action.severityCode == "ACTION")
+        #expect(watch.severityCode == "WATCH")
+        #expect(info.severityCode == "INFO")
+        #expect(action.severitySpoken == "Needs attention")
+        #expect(watch.severitySpoken == "Watch")
+        #expect(info.severitySpoken == "Context")
+    }
+
+    @Test func applicableOutlookUsesOutlookCausesOnly() throws {
+        let stored = try BriefEnvelopeSimpleSummaryTests.brief([
+            "causes": [
+                ["label": "Live cause", "why": "should not appear",
+                 "severity": "ACTION", "source": "swim_tfms"],
+            ],
+            "outlook": [
+                "applicable": true,
+                "headline": "Elevated delay risk · thunderstorms",
+                "causes": [
+                    ["label": "Thunderstorms around departure",
+                     "why": "Forecast, not a delay assignment.",
+                     "severity": "ACTION", "source": "taf"],
+                ],
+            ],
+        ])
+        let story = FlightStory.resolve(brief: stored, live: nil)
+        #expect(story.usesOutlook)
+        #expect(story.heroHeadline == "Elevated delay risk · thunderstorms")
+        #expect(story.orderedCauses.map(\.label) == ["Thunderstorms around departure"])
+    }
+
+    @Test func liveEmptyCausesDoNotFillFromBrief() throws {
+        let brief = try BriefEnvelopeSimpleSummaryTests.brief([
+            "causes": [
+                ["label": "Brief cause", "why": "from brief",
+                 "severity": "WATCH", "source": "taf"],
+            ],
+            "outlook": ["applicable": false],
+            "status": ["code": "DELAYED", "label": "Delayed"],
+        ])
+        let json = """
+        {"fetched_at":"2026-09-12T12:00:00Z","refresh_after_seconds":120,
+         "status":{"code":"DELAYED","label":"Delayed 16m","phase":"PRE_GATE"},
+         "impactMinutes":16,
+         "causes":[],
+         "outlook":{"applicable":false}}
+        """.data(using: .utf8)!
+        let live = StoredLive(envelope: try JSONDecoder().decode(LiveEnvelope.self, from: json))
+        let story = FlightStory.resolve(brief: brief, live: live)
+        #expect(!story.usesOutlook)
+        #expect(!story.hasCauses)
+        #expect(story.statusSubline == "Delayed 16m · +16 min")
     }
 
     @Test func causesKeepServerOrder() throws {

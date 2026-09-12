@@ -1,23 +1,24 @@
 import SwiftUI
 
-/// Hero for the flight story layer: outlook when `applicable`, otherwise
-/// status.label + impactMinutes. Cause rows sit directly under the headline
-/// so the screen reads "this is delayed because X".
+/// Single story hero. Locked binding — no parallel status/forecast layouts:
+/// - `outlook.applicable` → `outlook.headline`
+/// - else → `simple_summary` (designed prediction chrome) + `status.label`
+///   + `impactMinutes` as the subtitle
+/// Cause rows sit in this same card only when the list is non-empty.
 struct FlightStoryCard: View {
     let story: FlightStory
+    /// Designed `simple_summary` fallback when the server omitted the object.
+    var fallbackPrediction: SimplePrediction? = nil
+    var asOf: Date? = nil
+    var isStale: Bool = false
+    var onRefresh: (() -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.sm) {
-            Text(story.usesOutlook ? "Forecast" : "Status")
-                .font(TypeScale.kicker)
-                .textCase(.uppercase)
-                .kerning(0.6)
-                .foregroundStyle(Theme.teal)
-
             if story.usesOutlook {
                 outlookHero
             } else {
-                liveHero
+                summaryHero
             }
 
             if story.hasCauses {
@@ -27,79 +28,72 @@ struct FlightStoryCard: View {
                                    ? "What's on the forecast"
                                    : "Why this flight")
             }
+
+            if let asOf {
+                FreshnessCaption(asOf: asOf, isStale: isStale,
+                                 staleHint: "refresh for the current picture.",
+                                 onAction: onRefresh)
+            }
         }
         .cardStyle()
     }
 
     @ViewBuilder
     private var outlookHero: some View {
-        let outlook = story.outlook
-        Text(outlook?.headline ?? "Looking ahead")
+        Text(story.heroHeadline ?? "Looking ahead")
             .font(TypeScale.headline)
             .foregroundStyle(Theme.ink)
             .fixedSize(horizontal: false, vertical: true)
+    }
 
-        HStack(spacing: 8) {
-            if let risk = outlook?.risk {
-                StatusChip(text: risk.label, icon: risk.lucideIcon,
-                           tone: ChipTone.from(risk))
-            }
-            if let confidence = outlook?.confidence, !confidence.isEmpty {
-                StatusChip(text: "\(confidence.capitalized) confidence",
-                           tone: outlook?.isLowConfidence == true ? .neutral : .info,
-                           size: .mini)
-            }
-            Spacer(minLength: 0)
-        }
+    @ViewBuilder
+    private var summaryHero: some View {
+        Text("Based on what I know")
+            .font(TypeScale.kicker)
+            .textCase(.uppercase)
+            .kerning(0.6)
+            .foregroundStyle(Theme.teal)
 
-        if let label = story.status?.displayLabel {
-            Text("Status · \(label)")
-                .font(TypeScale.caption)
+        Text("Here's what I think will happen")
+            .font(TypeScale.headline)
+            .foregroundStyle(Theme.ink)
+
+        Text(story.heroHeadline
+             ?? (story.simpleSummary == nil ? fallbackPrediction?.headline : nil)
+             ?? "Checking this flight")
+            .font(TypeScale.bodyStrong)
+            .foregroundStyle(Theme.ink)
+            .fixedSize(horizontal: false, vertical: true)
+
+        if let body = story.heroBody, !body.isEmpty {
+            Text(body)
+                .font(TypeScale.body)
                 .foregroundStyle(Theme.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        } else if story.simpleSummary == nil, let body = fallbackPrediction?.body, !body.isEmpty {
+            Text(body)
+                .font(TypeScale.body)
+                .foregroundStyle(Theme.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
-    }
 
-    @ViewBuilder
-    private var liveHero: some View {
-        Text(story.status?.displayLabel ?? "Checking this flight")
-            .font(TypeScale.headline)
-            .foregroundStyle(Theme.ink)
-            .fixedSize(horizontal: false, vertical: true)
-
-        HStack(spacing: 8) {
-            if let minutes = story.impactMinutes {
-                impactChip(minutes)
-            } else if let status = story.status, status.statusCode != "UNKNOWN" {
-                StatusChip(text: status.statusCode.replacingOccurrences(of: "_", with: " ").capitalized,
-                           tone: status.chipTone, size: .mini)
-            }
-            Spacer(minLength: 0)
-        }
-    }
-
-    @ViewBuilder
-    private func impactChip(_ minutes: Int) -> some View {
-        if minutes > 0 {
-            StatusChip(text: "+\(minutes) min vs schedule",
-                       tone: SlipSeverity.of(minutes: Double(minutes)) == .alert ? .alert : .watch,
-                       size: .mini)
-        } else if minutes < 0 {
-            StatusChip(text: "\(minutes) min vs schedule",
-                       tone: .ok, size: .mini)
-        } else {
-            StatusChip(text: "On schedule", tone: .ok, size: .mini)
+        if let sub = story.statusSubline {
+            Text(sub)
+                .font(TypeScale.captionStrong)
+                .foregroundStyle(Theme.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }
 
-/// Cause rows: bold label, short why, spoken severity (not color-only).
+/// Cause rows: bold label, short why. ACTION / WATCH / INFO change type
+/// weight and ink — no chips, icons, or other chrome.
 struct CauseChainView: View {
     let causes: [StoryCause]
     var title: String = "Why this flight"
-    var embedded: Bool = true
 
     var body: some View {
-        let content = VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 10) {
             Text(title)
                 .font(TypeScale.captionBold)
                 .foregroundStyle(Theme.ink)
@@ -108,12 +102,6 @@ struct CauseChainView: View {
                 CauseRow(cause: cause)
             }
         }
-
-        if embedded {
-            content
-        } else {
-            content.cardStyle()
-        }
     }
 }
 
@@ -121,42 +109,49 @@ struct CauseRow: View {
     let cause: StoryCause
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            ZStack {
-                Circle()
-                    .fill(cause.chipTone.color.opacity(0.13))
-                    .frame(width: 30, height: 30)
-                LucideIcon(name: cause.icon, size: 14, fallback: "info.circle")
-                    .foregroundStyle(cause.chipTone.color)
+        VStack(alignment: .leading, spacing: 3) {
+            Text(cause.label ?? "Something to watch")
+                .font(labelFont)
+                .foregroundStyle(labelColor)
+                .fixedSize(horizontal: false, vertical: true)
+            if let why = cause.why, !why.isEmpty {
+                Text(why)
+                    .font(TypeScale.caption)
+                    .foregroundStyle(whyColor)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(cause.label ?? "Something to watch")
-                        .font(TypeScale.captionBold)
-                        .foregroundStyle(Theme.ink)
-                        .fixedSize(horizontal: false, vertical: true)
-                    // Text names the severity so color is never the only cue.
-                    StatusChip(text: cause.severityLabel,
-                               tone: cause.chipTone,
-                               size: .mini)
-                }
-                if let why = cause.why, !why.isEmpty {
-                    Text(why)
-                        .font(TypeScale.caption)
-                        .foregroundStyle(Theme.inkSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            Spacer(minLength: 0)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityText)
     }
 
+    /// Heavier weight = more urgent. Color tints the same scale.
+    private var labelFont: Font {
+        switch cause.severityCode {
+        case "ACTION": return TypeScale.captionBold
+        case "WATCH": return TypeScale.captionStrong
+        default: return TypeScale.caption
+        }
+    }
+
+    private var labelColor: Color {
+        switch cause.severityCode {
+        case "ACTION": return Theme.red
+        case "WATCH": return Theme.goldText
+        default: return Theme.ink
+        }
+    }
+
+    private var whyColor: Color {
+        switch cause.severityCode {
+        case "ACTION", "WATCH": return Theme.ink
+        default: return Theme.inkSecondary
+        }
+    }
+
     private var accessibilityText: String {
-        let name = cause.label ?? "Something to watch"
-        let why = cause.why ?? ""
-        return [name, cause.severityLabel, why]
+        [cause.label ?? "Something to watch", cause.severitySpoken, cause.why ?? ""]
             .filter { !$0.isEmpty }
             .joined(separator: ". ")
     }

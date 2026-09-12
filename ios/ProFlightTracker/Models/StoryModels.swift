@@ -1,5 +1,4 @@
 import Foundation
-import SwiftUI
 
 /// Traveler-facing operational status from `/api/brief` and `/api/flight/live`
 /// (`status` in v1.13). Optional on older backends.
@@ -17,14 +16,6 @@ nonisolated struct StoryStatus: Codable, Hashable, Sendable {
         guard let label, !label.isEmpty else { return nil }
         return label
     }
-
-    var chipTone: ChipTone {
-        switch statusCode {
-        case "DELAYED", "CANCELLED", "DIVERTED": return .alert
-        case "EARLY", "ON_TIME", "ARRIVED": return .ok
-        default: return .neutral
-        }
-    }
 }
 
 /// One traveler-facing cause row (`causes[]` / `outlook.causes[]`).
@@ -37,28 +28,12 @@ nonisolated struct StoryCause: Codable, Hashable, Sendable {
 
     var severityCode: String { (severity ?? "INFO").uppercased() }
 
-    /// Spoken severity — never color-only meaning.
-    var severityLabel: String {
+    /// Spoken severity for VoiceOver — chrome never names this on screen.
+    var severitySpoken: String {
         switch severityCode {
         case "ACTION": return "Needs attention"
         case "WATCH": return "Watch"
         default: return "Context"
-        }
-    }
-
-    var chipTone: ChipTone {
-        switch severityCode {
-        case "ACTION": return .alert
-        case "WATCH": return .watch
-        default: return .neutral
-        }
-    }
-
-    var icon: String {
-        switch severityCode {
-        case "ACTION": return "octagon-alert"
-        case "WATCH": return "eye"
-        default: return "info"
         }
     }
 
@@ -121,20 +96,20 @@ nonisolated struct StoryOutlook: Codable, Hashable, Sendable {
     var risk: RiskLevel? {
         riskLevel.flatMap { RiskLevel(rawValue: $0.uppercased()) }
     }
-
-    var isLowConfidence: Bool { confidence?.uppercased() == "LOW" }
 }
 
-/// Resolved flight-screen story. Bind these fields; do not re-derive.
+/// Locked flight-screen story. One switch, nothing looser:
+/// - `outlook.applicable` → hero = `outlook.headline`, causes = `outlook.causes`
+/// - else → hero = `simple_summary`, sub = `status.label` + `impactMinutes`,
+///   causes = `causes`
 nonisolated struct FlightStory: Hashable, Sendable {
     enum Kind: String, Sendable {
-        /// Far-out forecast: risk + confidence + outlook causes.
         case outlook
-        /// Live / near: status.label + impactMinutes + operational causes.
-        case live
+        case summary
     }
 
     var kind: Kind
+    var simpleSummary: BriefSimpleSummary?
     var status: StoryStatus?
     var impactMinutes: Int?
     var outlook: StoryOutlook?
@@ -142,59 +117,79 @@ nonisolated struct FlightStory: Hashable, Sendable {
 
     var usesOutlook: Bool { kind == .outlook }
 
-    var hasContent: Bool {
-        status?.displayLabel != nil
-            || impactMinutes != nil
-            || !(outlook?.headline ?? "").isEmpty
-            || !causes.isEmpty
-    }
-
     /// Server order, already ACTION → WATCH → INFO.
     var orderedCauses: [StoryCause] { causes.filter(\.hasContent) }
 
     var hasCauses: Bool { !orderedCauses.isEmpty }
 
-    /// One-rule resolver: outlook when `applicable == true` on a fresh brief;
-    /// otherwise live/near status + impact + causes. Live layer wins the
-    /// live story once it has arrived (it always ships applicable: false).
+    var heroHeadline: String? {
+        if usesOutlook {
+            let text = outlook?.headline?.trimmingCharacters(in: .whitespacesAndNewlines)
+            return (text?.isEmpty == false) ? text : nil
+        }
+        return simpleSummary?.headline
+    }
+
+    var heroBody: String? {
+        usesOutlook ? nil : simpleSummary?.whatIThink
+    }
+
+    var hasContent: Bool {
+        if usesOutlook {
+            return heroHeadline != nil || hasCauses
+        }
+        return simpleSummary?.hasContent == true
+            || status?.displayLabel != nil
+            || impactMinutes != nil
+            || hasCauses
+    }
+
+    /// `status.label` + `impactMinutes` for the else-branch subtitle.
+    var statusSubline: String? {
+        guard !usesOutlook else { return nil }
+        var parts: [String] = []
+        if let label = status?.displayLabel { parts.append(label) }
+        if let minutes = impactMinutes {
+            if minutes > 0 {
+                parts.append("+\(minutes) min")
+            } else if minutes < 0 {
+                parts.append("\(minutes) min")
+            } else {
+                parts.append("0 min")
+            }
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    /// `outlook.applicable` is the only switch. Live always ships false.
+    /// Else-branch fields: `simple_summary` prefers the brief (full
+    /// prediction); `status` / `impactMinutes` / `causes` prefer live when
+    /// that pull actually sent the keys (including an empty cause list).
     static func resolve(brief: StoredBrief?, live: StoredLive?) -> FlightStory {
-        if let brief, !brief.isStale, brief.outlook?.isApplicable == true {
+        if let outlook = brief?.outlook, outlook.isApplicable {
             return FlightStory(
                 kind: .outlook,
-                status: brief.status ?? live?.status,
+                simpleSummary: nil,
+                status: brief?.status ?? live?.status,
                 impactMinutes: nil,
-                outlook: brief.outlook,
-                causes: brief.outlook?.orderedCauses ?? [])
+                outlook: outlook,
+                causes: outlook.orderedCauses)
         }
 
-        if let live, live.hasStoryFields {
-            return FlightStory(
-                kind: .live,
-                status: live.status,
-                impactMinutes: live.impactMinutes,
-                outlook: live.outlook,
-                causes: live.causes ?? [])
+        let causes: [StoryCause]
+        if let liveCauses = live?.causes {
+            causes = liveCauses
+        } else {
+            causes = brief?.causes ?? []
         }
 
-        if let brief {
-            if brief.outlook?.isApplicable == true, !brief.isStale {
-                return FlightStory(
-                    kind: .outlook,
-                    status: brief.status,
-                    impactMinutes: brief.impactMinutes,
-                    outlook: brief.outlook,
-                    causes: brief.outlook?.orderedCauses ?? [])
-            }
-            return FlightStory(
-                kind: .live,
-                status: brief.status,
-                impactMinutes: brief.impactMinutes,
-                outlook: brief.outlook,
-                causes: brief.causes ?? [])
-        }
-
-        return FlightStory(kind: .live, status: nil, impactMinutes: nil,
-                           outlook: nil, causes: [])
+        return FlightStory(
+            kind: .summary,
+            simpleSummary: brief?.simpleSummary ?? live?.simpleSummary,
+            status: live?.status ?? brief?.status,
+            impactMinutes: live?.impactMinutes ?? brief?.impactMinutes,
+            outlook: brief?.outlook ?? live?.outlook,
+            causes: causes)
     }
 }
 
@@ -202,10 +197,6 @@ extension StoredBrief {
     var hasStoryFields: Bool {
         status != nil || impactMinutes != nil || !(causes ?? []).isEmpty
             || outlook != nil
-    }
-
-    var hasStoryCauses: Bool {
-        !(causes ?? []).isEmpty || outlook?.isApplicable == true
     }
 }
 

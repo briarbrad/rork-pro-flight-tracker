@@ -106,26 +106,27 @@ nonisolated enum SimplePredictionComposer {
     static func prediction(brief: StoredBrief?,
                            live: StoredLive?,
                            zones: FlightZones = .unknown) -> SimplePrediction {
-        if let summary = brief?.simpleSummary ?? live?.simpleSummary, summary.hasContent {
+        let story = FlightStory.resolve(brief: brief, live: live)
+        // Same locked switch as the story card: outlook.applicable wins.
+        if story.usesOutlook, let headline = story.heroHeadline {
+            return SimplePrediction(
+                headline: headline,
+                body: story.orderedCauses.first?.why ?? "",
+                confidenceNote: nil,
+                fromServer: true)
+        }
+        if let summary = story.simpleSummary, summary.hasContent {
             return SimplePrediction(
                 headline: summary.headline ?? defaultHeadline(brief: brief, live: live),
                 body: summary.whatIThink ?? composedBody(brief: brief, live: live, zones: zones),
                 confidenceNote: summary.confidenceNote ?? composedConfidenceNote(brief: brief),
                 fromServer: true)
         }
-        let story = FlightStory.resolve(brief: brief, live: live)
-        if story.usesOutlook, let headline = story.outlook?.headline, !headline.isEmpty {
-            return SimplePrediction(
-                headline: headline,
-                body: outlookBody(story, fallback: composedBody(brief: brief, live: live, zones: zones)),
-                confidenceNote: outlookConfidenceNote(story) ?? composedConfidenceNote(brief: brief),
-                fromServer: true)
-        }
         return SimplePrediction(
-            headline: story.status?.displayLabel ?? defaultHeadline(brief: brief, live: live),
+            headline: defaultHeadline(brief: brief, live: live),
             body: composedBody(brief: brief, live: live, zones: zones),
             confidenceNote: composedConfidenceNote(brief: brief),
-            fromServer: story.status != nil)
+            fromServer: false)
     }
 
     static func risk(brief: StoredBrief?, live: StoredLive?) -> SimpleRiskTreatment {
@@ -172,10 +173,11 @@ nonisolated enum SimplePredictionComposer {
                 }
                 return (label, .neutral)
             }
-            if story.status?.statusCode == "ON_TIME" {
-                return (label, .ok)
+            switch story.status?.statusCode {
+            case "DELAYED", "CANCELLED", "DIVERTED": return (label, .alert)
+            case "EARLY", "ON_TIME", "ARRIVED": return (label, .ok)
+            default: return (label, .neutral)
             }
-            return (label, story.status?.chipTone ?? .neutral)
         }
 
         let treatment = risk(brief: brief, live: live)
@@ -238,22 +240,6 @@ nonisolated enum SimplePredictionComposer {
             return "I don't have a firm prediction yet — check back closer to departure."
         }
         return uniqueSentences(parts).joined(separator: " ")
-    }
-
-    private static func outlookBody(_ story: FlightStory, fallback: String) -> String {
-        let whys = story.orderedCauses.compactMap { cause -> String? in
-            if let why = cause.why, !why.isEmpty { return why }
-            return cause.label
-        }
-        if let first = whys.first, !first.isEmpty { return first }
-        return fallback
-    }
-
-    private static func outlookConfidenceNote(_ story: FlightStory) -> String? {
-        guard let confidence = story.outlook?.confidence, !confidence.isEmpty else {
-            return nil
-        }
-        return "\(confidence.capitalized) confidence — a forecast, not a live delay."
     }
 
     private static func composedConfidenceNote(brief: StoredBrief?) -> String? {
