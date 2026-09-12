@@ -495,7 +495,8 @@ struct FlightDetailView: View {
                                 unexplainedDeltaNote: DeltaExplainer(
                                     times: brief?.predictedTimes,
                                     effects: brief?.effects)
-                                    .unexplainedDeltaNote(for: brief?.predictedTimes))
+                                    .unexplainedDeltaNote(for: brief?.predictedTimes),
+                                title: "Source findings")
                 }
                 forecastWindows
                 weatherSection(embedded: true)
