@@ -221,6 +221,7 @@ struct ChainSection: View {
 struct MapPreviewSection: View {
     let position: AircraftPosition?
     let flightIdent: String
+    var filedRoute: String? = nil
     /// Embedded = rendered inside a CollapsibleSection's card: no own card
     /// shell and no repeated "Live position" title.
     var embedded: Bool = false
@@ -274,6 +275,17 @@ struct MapPreviewSection: View {
                                    icon: "radio", tone: .info, size: .mini)
                     }
                     Spacer()
+                }
+                if let filedRoute, !filedRoute.isEmpty {
+                    HStack(alignment: .top, spacing: 6) {
+                        LucideIcon(name: "route", size: 11, fallback: "point.topleft.down.to.point.bottomright.curvepath")
+                            .foregroundStyle(Theme.teal)
+                            .padding(.top, 1)
+                        Text(filedRoute)
+                            .font(TypeScale.caption2)
+                            .foregroundStyle(Theme.inkSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
             }
             .cardStyle()

@@ -86,6 +86,7 @@ final class AppStore {
         let tracked = TrackedFlight(ident: cleaned, date: dateString, intervalMinutes: intervalMinutes)
         var snapshot = FlightSnapshot()
         snapshot.flight = pickBestLeg(status.data?.flights) ?? found
+        snapshot.filedRoute = status.data?.route?.filedRouteString
         repository.add(tracked, snapshot: snapshot)
 
         // Server-side tracking only when a real Expo/APNs token exists.
@@ -233,12 +234,24 @@ final class AppStore {
                     guard withinWindow, let originIcao, let destIcao else { return nil }
                     return try? await API.convectiveForecast(originIcao: originIcao, destIcao: destIcao)
                 }()
+                // G-AIRMET is the same family as TCF: free, route-scoped,
+                // same-day only, reference data — never a verdict input.
+                async let gairmetTask: GairmetEnvelope? = {
+                    guard withinWindow, let originIcao, let destIcao else { return nil }
+                    return try? await API.gairmet(route: originIcao, destIcao: destIcao)
+                }()
                 // International SIGMETs cover only what the CONUS sigmet feed
                 // can't — fetching them for a domestic pair would duplicate it.
                 async let isigmetTask: [InternationalSigmet]? = {
                     guard withinWindow,
                           HorizonGate.routeLeavesConus(origin: originIcao, dest: destIcao) else { return nil }
                     return try? await API.internationalSigmets()
+                }()
+                // Open-Meteo / extended weather is free model guidance. Probe
+                // once; if the routes 404, remember so later refreshes skip.
+                async let modelTask: (ModelGuidanceEnvelope?, Set<String>) = {
+                    let skip = Set(snapshot.missingOptionalEndpoints ?? [])
+                    return await API.modelGuidance(icaos: airports, skipPaths: skip)
                 }()
 
                 snapshot.faa = (try? await faaTask)?.data ?? snapshot.faa
@@ -247,6 +260,14 @@ final class AppStore {
                 if let convective = await convectiveTask {
                     snapshot.convective = convective
                 }
+                if let gairmet = await gairmetTask {
+                    snapshot.gairmet = gairmet
+                }
+                let (model, missingModelPaths) = await modelTask
+                if let model, model.hasContent {
+                    snapshot.modelGuidance = model
+                }
+                snapshot.markMissingEndpoints(missingModelPaths)
                 if let advisories = await isigmetTask {
                     snapshot.internationalSigmets = InternationalSigmet.inRegion(
                         of: airports, advisories: advisories)
@@ -358,6 +379,9 @@ final class AppStore {
         let envelope = try await API.brief(flight: flight.ident, date: flight.date)
         var snapshot = snapshots[flight.id] ?? FlightSnapshot()
         snapshot.brief = StoredBrief(envelope: envelope)
+        if snapshot.filedRoute == nil {
+            snapshot.filedRoute = envelope.llmPayload?.facts?.filedRouteString
+        }
         // Re-run the signal engine immediately so sources the brief excluded
         // stop driving signals, alerts, and the risk color.
         applyAssessment(for: flight, snapshot: &snapshot)
@@ -382,6 +406,34 @@ final class AppStore {
                 self.narrativePending.remove(flightId)
                 self.repository.saveSnapshot(for: flightId)
             }
+        }
+    }
+
+    /// Eurocontrol ATFM inference — one shot from the detail screen when
+    /// the destination is European. Not on refreshAll (the script hits
+    /// AeroAPI server-side). Remembers a 404 so we don't probe forever.
+    func loadAtfmIfNeeded(for flight: TrackedFlight) async {
+        guard var snapshot = snapshots[flight.id],
+              snapshot.atfm == nil,
+              !snapshot.isMissingEndpoint("/api/ops/atfm"),
+              HorizonGate.destInEurocontrol(snapshot.flight?.destIcao)
+        else { return }
+
+        switch await API.getOptionalJSON("/api/ops/atfm", query: [
+            "flight": flight.ident, "date": flight.date,
+        ]) {
+        case .value(let json):
+            if let data = try? JSONEncoder().encode(json),
+               let envelope = try? JSONDecoder().decode(AtfmEnvelope.self, from: data) {
+                repository.snapshots[flight.id]?.atfm = envelope
+                repository.saveSnapshot(for: flight.id)
+            }
+        case .missing:
+            snapshot.markMissingEndpoints(["/api/ops/atfm"])
+            repository.snapshots[flight.id] = snapshot
+            repository.saveSnapshot(for: flight.id)
+        case .failed:
+            break
         }
     }
 

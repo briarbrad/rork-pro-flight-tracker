@@ -9,6 +9,7 @@ struct LiveMapView: View {
     let flight: TrackedFlight
     let initialPosition: AircraftPosition?
     let registration: String?
+    var filedRoute: String? = nil
 
     @State private var position: AircraftPosition?
     @State private var trail: [CLLocationCoordinate2D] = []
@@ -116,6 +117,17 @@ struct LiveMapView: View {
                             .foregroundStyle(Theme.inkSecondary)
                             .lineLimit(1)
                             .truncationMode(.tail)
+                    }
+                }
+                if let filedRoute, !filedRoute.isEmpty {
+                    HStack(alignment: .top, spacing: 5) {
+                        LucideIcon(name: "route", size: 11, fallback: "point.topleft.down.to.point.bottomright.curvepath")
+                            .foregroundStyle(Theme.teal)
+                            .padding(.top, 1)
+                        Text("Filed · \(filedRoute)")
+                            .font(TypeScale.caption2Medium)
+                            .foregroundStyle(Theme.inkSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
             }

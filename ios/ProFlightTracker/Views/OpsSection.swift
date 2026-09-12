@@ -19,6 +19,7 @@ struct OpsSection: View {
     @State private var rvr: JSONValue?
     @State private var lightning: LightningEnvelope?
     @State private var pireps: JSONValue?
+    @State private var itws: SwimEnvelope?
     @State private var loadError: String?
     @State private var showRawNotams: Bool = false
     @State private var showRawPireps: Bool = false
@@ -69,11 +70,12 @@ struct OpsSection: View {
                         }
                     }
                     if isLoading && notams == nil {
-                        Text("Pulling NOTAMs, RVR, lightning, and pilot reports — live FAA feeds take a few seconds…")
+                        Text("Pulling NOTAMs, RVR, lightning, ITWS, and pilot reports — live FAA feeds take a few seconds…")
                             .font(TypeScale.caption)
                             .foregroundStyle(Theme.inkSecondary)
                     }
                     lightningBlock
+                    itwsBlock
                     rvrBlock
                     notamBlock
                     pirepBlock
@@ -98,7 +100,7 @@ struct OpsSection: View {
                 }
                 .foregroundStyle(Theme.inkSecondary)
             }
-            Text("Lightning, runway visual range, NOTAMs, and pilot reports describe the next few hours — this far out they can't tell you anything about your departure, so the app doesn't pull them yet.")
+            Text("Lightning, runway visual range, NOTAMs, ITWS terminal weather, and pilot reports describe the next few hours — this far out they can't tell you anything about your departure, so the app doesn't pull them yet.")
                 .font(TypeScale.caption)
                 .foregroundStyle(Theme.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -125,15 +127,18 @@ struct OpsSection: View {
             async let rvrTask = try? API.rvr(airportIcao: origin)
             async let lightningTask = try? API.lightning(icao: origin)
             async let pirepTask = try? API.pireps(icao: airport)
+            async let itwsTask = try? API.itws(airportIcao: origin)
 
-            let (notamResult, rvrResult, lightningResult, pirepResult) =
-                await (notamTask, rvrTask, lightningTask, pirepTask)
+            let (notamResult, rvrResult, lightningResult, pirepResult, itwsResult) =
+                await (notamTask, rvrTask, lightningTask, pirepTask, itwsTask)
 
             notams = notamResult
             rvr = rvrResult
             lightning = lightningResult
             pireps = pirepResult
-            if notamResult == nil && rvrResult == nil && lightningResult == nil && pirepResult == nil {
+            itws = itwsResult
+            if notamResult == nil && rvrResult == nil && lightningResult == nil
+                && pirepResult == nil && itwsResult == nil {
                 loadError = "Couldn't reach the ops feeds. Try again in a moment."
             }
             isLoading = false
@@ -158,6 +163,63 @@ struct OpsSection: View {
                         .foregroundStyle(close > 0 ? Theme.goldText : Theme.inkSecondary)
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private var itwsBlock: some View {
+        if let itws {
+            opsBlock(icon: "radar", title: "ITWS terminal weather — \(originIcao ?? destIcao ?? "")") {
+                if let error = itws.error {
+                    Text(error).font(TypeScale.caption).foregroundStyle(Theme.inkSecondary)
+                } else {
+                    let alerts = ItwsAlert.parse(from: itws)
+                    if alerts.isEmpty {
+                        Text(itws.isQuiet
+                             ? "Feed was quiet during the capture window — no microburst, gust-front, or wind-shear alerts."
+                             : "No microburst, gust-front, or wind-shear alerts at this airport.")
+                            .font(TypeScale.caption)
+                            .foregroundStyle(Theme.inkSecondary)
+                    } else {
+                        ForEach(Array(alerts.prefix(4).enumerated()), id: \.offset) { _, alert in
+                            HStack(alignment: .top, spacing: 6) {
+                                LucideIcon(name: itwsIcon(alert.kindCode), size: 12,
+                                           fallback: "exclamationmark.triangle")
+                                    .foregroundStyle(itwsTone(alert.kindCode).color)
+                                    .padding(.top, 1)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(alert.headline)
+                                        .font(TypeScale.captionStrong)
+                                        .foregroundStyle(Theme.ink)
+                                    if let detail = alert.detail, !detail.isEmpty {
+                                        Text(detail)
+                                            .font(TypeScale.caption2)
+                                            .foregroundStyle(Theme.inkSecondary)
+                                    }
+                                }
+                                Spacer(minLength: 0)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func itwsIcon(_ kind: String) -> String {
+        switch kind {
+        case "MICROBURST": return "octagon-alert"
+        case "GUST_FRONT": return "wind"
+        case "WIND_SHEAR": return "waves"
+        default: return "cloud-lightning"
+        }
+    }
+
+    private func itwsTone(_ kind: String) -> ChipTone {
+        switch kind {
+        case "MICROBURST": return .alert
+        case "GUST_FRONT", "WIND_SHEAR": return .watch
+        default: return .info
         }
     }
 

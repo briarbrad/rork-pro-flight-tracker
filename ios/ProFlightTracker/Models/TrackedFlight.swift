@@ -32,6 +32,20 @@ nonisolated struct FlightSnapshot: Codable, Hashable, Sendable {
     var convective: TcfEnvelope?
     /// International SIGMETs, fetched only when the route leaves CONUS.
     var internationalSigmets: [InternationalSigmet]?
+    /// Route-filtered G-AIRMET turbulence corridor. Free, reference only.
+    var gairmet: GairmetEnvelope?
+    /// Eurocontrol ATFM / CTOT inference. Fetched once from the detail
+    /// screen for European destinations — not on refreshAll.
+    var atfm: AtfmEnvelope?
+    /// Open-Meteo / extended model guidance. Hidden when the endpoint is
+    /// absent. Reference only — never a verdict driver.
+    var modelGuidance: ModelGuidanceEnvelope?
+    /// Filed route string when a payload already carried one (status.route
+    /// or brief facts). Never bought — AeroAPI route is a second paid query.
+    var filedRoute: String?
+    /// Optional endpoints that 404'd on this install, so refresh does not
+    /// keep probing them. Optional so older snapshots still decode.
+    var missingOptionalEndpoints: [String]?
     /// Last known aircraft position. Filled from the equipment chain while
     /// the turn is still relevant, then from the usually-free `/api/flight/track`
     /// once the aircraft has pushed (so the day-of map does not depend on a
@@ -90,5 +104,16 @@ nonisolated struct FlightSnapshot: Codable, Hashable, Sendable {
         let totalStrikes: Int?
         let rampClosureRisk: String?
         let activityLevel: String?
+    }
+
+    func isMissingEndpoint(_ path: String) -> Bool {
+        missingOptionalEndpoints?.contains(path) == true
+    }
+
+    mutating func markMissingEndpoints(_ paths: Set<String>) {
+        guard !paths.isEmpty else { return }
+        var set = Set(missingOptionalEndpoints ?? [])
+        set.formUnion(paths)
+        missingOptionalEndpoints = set.sorted()
     }
 }

@@ -8,6 +8,7 @@ import SwiftUI
 struct EnrouteHazardsSection: View {
     let convective: TcfEnvelope?
     let internationalSigmets: [InternationalSigmet]?
+    var gairmet: GairmetEnvelope? = nil
     /// Embedded = rendered inside a CollapsibleSection's card: keeps its own
     /// sub-header (the title differs from the disclosure's) but drops the
     /// card shell so it doesn't nest a capsule inside a capsule.
@@ -16,7 +17,7 @@ struct EnrouteHazardsSection: View {
     private var advisories: [InternationalSigmet] { internationalSigmets ?? [] }
 
     private var hasContent: Bool {
-        convective != nil || !advisories.isEmpty
+        convective != nil || gairmet != nil || !advisories.isEmpty
     }
 
     var body: some View {
@@ -38,8 +39,15 @@ struct EnrouteHazardsSection: View {
                 convectiveBlock(convective)
             }
 
-            if !advisories.isEmpty {
+            if let gairmet {
                 if convective != nil {
+                    Divider().overlay(Theme.hairline)
+                }
+                gairmetBlock(gairmet)
+            }
+
+            if !advisories.isEmpty {
+                if convective != nil || gairmet != nil {
                     Divider().overlay(Theme.hairline)
                 }
                 advisoryBlock
@@ -112,6 +120,97 @@ struct EnrouteHazardsSection: View {
         switch tcf.level {
         case "MODERATE": return .watch
         case "HIGH", "SEVERE": return .alert
+        default: return .info
+        }
+    }
+
+    // MARK: - G-AIRMET turbulence corridor
+
+    @ViewBuilder
+    private func gairmetBlock(_ gairmet: GairmetEnvelope) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                LucideIcon(name: gairmet.isQuiet ? "wind" : "waves", size: 15,
+                           fallback: "wind")
+                    .foregroundStyle(gairmetTone(gairmet).color)
+                GlossaryText(text: "G-AIRMET turbulence corridor",
+                             font: .caption.weight(.semibold),
+                             color: Theme.ink)
+                Spacer()
+                StatusChip(text: gairmet.isQuiet ? "Clear" : gairmet.level,
+                           tone: gairmetTone(gairmet), size: .mini, uppercased: true)
+            }
+
+            Text(gairmetHeadline(gairmet))
+                .font(TypeScale.caption)
+                .foregroundStyle(Theme.inkSecondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            if !gairmet.isQuiet {
+                ForEach(Array(gairmet.areas.prefix(4).enumerated()), id: \.offset) { _, area in
+                    HStack(alignment: .top, spacing: 8) {
+                        LucideIcon(name: "triangle-alert", size: 12, fallback: "exclamationmark.triangle")
+                            .foregroundStyle(gairmetSeverityTone(area.severityCode).color)
+                            .padding(.top, 2)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(area.hazardLabel)
+                                .font(TypeScale.captionStrong)
+                                .foregroundStyle(Theme.ink)
+                            Text(gairmetSubline(area))
+                                .font(TypeScale.caption2)
+                                .foregroundStyle(Theme.inkSecondary)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                }
+                HStack(spacing: 6) {
+                    ForEach(gairmetPlacementChips(gairmet), id: \.self) { chip in
+                        StatusChip(text: chip, tone: .info, size: .mini)
+                    }
+                    Spacer(minLength: 0)
+                }
+            }
+        }
+    }
+
+    private func gairmetHeadline(_ gairmet: GairmetEnvelope) -> String {
+        guard !gairmet.isQuiet else {
+            return "No G-AIRMET turbulence or wind-shear polygons intersecting your route — the usual, and the good outcome."
+        }
+        let count = gairmet.areas.count
+        let noun = count == 1 ? "advisory" : "advisories"
+        return "\(count) turbulence \(noun) along the corridor. Severity and altitude band below — this does not change the assessment above."
+    }
+
+    private func gairmetSubline(_ area: GairmetArea) -> String {
+        var parts: [String] = []
+        if !area.severityLabel.isEmpty { parts.append(area.severityLabel) }
+        if let band = area.altitudeBand { parts.append(band) }
+        parts.append(area.whereText)
+        return parts.joined(separator: " · ")
+    }
+
+    private func gairmetPlacementChips(_ gairmet: GairmetEnvelope) -> [String] {
+        var chips: [String] = []
+        if gairmet.nearOriginCount > 0 { chips.append("Near departure") }
+        if gairmet.nearDestCount > 0 { chips.append("Near arrival") }
+        if gairmet.alongRouteCount > 0 { chips.append("\(gairmet.alongRouteCount) along route") }
+        return chips
+    }
+
+    private func gairmetTone(_ gairmet: GairmetEnvelope) -> ChipTone {
+        guard !gairmet.isQuiet else { return .ok }
+        switch gairmet.level {
+        case "HIGH": return .alert
+        case "MODERATE": return .watch
+        default: return .info
+        }
+    }
+
+    private func gairmetSeverityTone(_ code: String) -> ChipTone {
+        switch code {
+        case "SEV", "EXTM": return .alert
+        case "MOD": return .watch
         default: return .info
         }
     }
