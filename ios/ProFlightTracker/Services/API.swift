@@ -96,6 +96,21 @@ nonisolated enum API {
         try await get(path, query: query)
     }
 
+    /// GET that treats 404/501 as "endpoint not shipped yet" so the UI can
+    /// hide a section instead of erroring before a parallel backend deploy.
+    static func getOptionalJSON(_ path: String, query: [String: String?] = [:]) async -> OptionalEndpoint<JSONValue> {
+        do {
+            let value: JSONValue = try await get(path, query: query)
+            return .value(value)
+        } catch APIError.http(let code, _) where code == 404 || code == 501 {
+            return .missing
+        } catch {
+            let message = (error as? APIError)?.errorDescription ?? error.localizedDescription
+            print("[API] optional \(path) failed: \(error)")
+            return .failed(message)
+        }
+    }
+
     // MARK: - Flight (AeroAPI-backed — costs money, call sparingly)
 
     static func flightStatus(flight: String, date: String?) async throws -> FlightStatusEnvelope {
@@ -183,6 +198,59 @@ nonisolated enum API {
         return try await getJSON("/api/ops/rvr", query: ["airport": code])
     }
 
+    /// G-AIRMET turbulence / wind-shear polygons filtered to a route.
+    /// Free. `relevant[]` empty is the usual quiet case, not a failure.
+    static func gairmet(route originIcao: String, destIcao: String) async throws -> GairmetEnvelope {
+        try await get("/api/ops/gairmet", query: ["route": "\(originIcao),\(destIcao)"])
+    }
+
+    /// Eurocontrol ATFM / CTOT inference. Server-side AeroAPI — call once
+    /// from the detail screen for European destinations, never from refreshAll.
+    static func atfm(flight: String, date: String?) async throws -> AtfmEnvelope {
+        try await get("/api/ops/atfm", query: ["flight": flight, "date": date])
+    }
+
+    /// Composed NAS flow picture (TFMS + TBFM + TFDM + effects[]). Free but
+    /// slow — user-initiated expand only. 404 → caller falls back to helpers.
+    static func flowBrief(flight: String, date: String?,
+                          originIcao: String?, destIcao: String?) async -> OptionalEndpoint<FlowBriefEnvelope> {
+        let result = await getOptionalJSON("/api/ops/flow-brief", query: [
+            "flight": flight,
+            "date": date,
+            "origin": originIcao,
+            "dest": destIcao,
+            "airport": originIcao,
+        ])
+        switch result {
+        case .value(let json):
+            return .value(FlowBriefEnvelope.parse(json))
+        case .missing:
+            return .missing
+        case .failed(let message):
+            return .failed(message)
+        }
+    }
+
+    /// Open-Meteo / extended model guidance. Tries documented paths; hides
+    /// when none of them exist yet.
+    static func modelGuidance(icaos: [String],
+                              skipPaths: Set<String> = []) async -> (ModelGuidanceEnvelope?, Set<String>) {
+        let paths = ["/api/weather/open-meteo", "/api/weather/extended"]
+        var missing = Set<String>()
+        let joined = icaos.joined(separator: ",")
+        for path in paths where !skipPaths.contains(path) {
+            switch await getOptionalJSON(path, query: ["icao": joined]) {
+            case .value(let json):
+                return (ModelGuidanceEnvelope.parse(json, icaos: icaos), missing)
+            case .missing:
+                missing.insert(path)
+            case .failed:
+                continue
+            }
+        }
+        return (nil, missing)
+    }
+
     // MARK: - FAA SWIM (free, slow — live broker capture)
 
     static func notams(airportIcao: String) async throws -> SwimEnvelope {
@@ -191,6 +259,25 @@ nonisolated enum API {
 
     static func itws(airportIcao: String) async throws -> SwimEnvelope {
         try await get("/api/swim/itws", query: ["airport": airportIcao, "duration": "8"])
+    }
+
+    static func tbfm(airportIcao: String, flight: String?, duration: String = "8") async throws -> SwimEnvelope {
+        try await get("/api/swim/tbfm", query: [
+            "airport": airportIcao, "flight": flight, "duration": duration,
+        ])
+    }
+
+    static func tfmsFlow(airportIcao: String, keyword: String = "GDP",
+                         duration: String = "8") async throws -> SwimEnvelope {
+        try await get("/api/swim/tfms-flow", query: [
+            "airport": airportIcao, "keyword": keyword, "duration": duration,
+        ])
+    }
+
+    static func tfdm(airportIcao: String, flight: String?, duration: String = "8") async throws -> SwimEnvelope {
+        try await get("/api/swim/tfdm", query: [
+            "airport": airportIcao, "flight": flight, "duration": duration,
+        ])
     }
 
     // MARK: - AI narrative (provider key lives server-side)

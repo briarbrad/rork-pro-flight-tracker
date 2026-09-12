@@ -73,4 +73,24 @@ nonisolated enum HorizonGate {
             || code == DerivedFlightPhase.airborne.rawValue
             || code == DerivedFlightPhase.taxiIn.rawValue
     }
+
+    /// ICAO two-letter prefixes in ECAC / Eurocontrol ATFM airspace — mirrors
+    /// `EUROCONTROL_PREFIXES` in the backend's `airport_ops.py`.
+    static let eurocontrolPrefixes: Set<String> = [
+        "BI",
+        "EB", "ED", "EE", "EF", "EG", "EH", "EI", "EK", "EL",
+        "EN", "EP", "ES", "ET", "EV", "EY",
+        "LA", "LB", "LC", "LD", "LE", "LF", "LG", "LH", "LI",
+        "LJ", "LK", "LL", "LM", "LN", "LO", "LP", "LQ", "LR",
+        "LS", "LT", "LU", "LW", "LX", "LY", "LZ",
+        "GC", "GE",
+        "UD", "UG", "UK",
+    ]
+
+    /// True when the destination sits in Eurocontrol airspace, so a CTOT /
+    /// ATFM inference is worth asking for.
+    static func destInEurocontrol(_ destIcao: String?) -> Bool {
+        guard let dest = destIcao?.uppercased(), dest.count >= 2 else { return false }
+        return eurocontrolPrefixes.contains(String(dest.prefix(2)))
+    }
 }

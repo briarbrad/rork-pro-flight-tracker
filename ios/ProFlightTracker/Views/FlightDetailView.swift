@@ -200,7 +200,8 @@ struct FlightDetailView: View {
         .fullScreenCover(isPresented: $showingMap) {
             LiveMapView(flight: flight,
                         initialPosition: mapPosition,
-                        registration: snapshot?.chain?.tailNumber ?? leg?.registration)
+                        registration: snapshot?.chain?.tailNumber ?? leg?.registration,
+                        filedRoute: snapshot?.filedRoute)
         }
         .fullScreenCover(item: $popup) { DetailPopupHost(popup: $0) }
         .sheet(isPresented: $showingChat) {
@@ -227,6 +228,7 @@ struct FlightDetailView: View {
             // the verdict appears without a tap. Exactly once per flight —
             // the store persists the attempt, so reopening never refires it.
             await store.autoBriefIfNeeded(for: flight)
+            await store.loadAtfmIfNeeded(for: flight)
         }
     }
 
@@ -238,6 +240,7 @@ struct FlightDetailView: View {
         // the one place all milestone timing renders.
         heroCard
         edctBannerView
+        atfmCard(embedded: false)
 
         // 2 · WHY / ACTION — what's driving the verdict and what to do.
         BriefSection(flight: flight)
@@ -272,6 +275,8 @@ struct FlightDetailView: View {
         heroCard
         mapSection(embedded: false)
         edctBannerView
+        atfmCard(embedded: false)
+        flowSection(embedded: false)
 
         // 2 · WHY / ACTION.
         BriefSection(flight: flight)
@@ -410,11 +415,18 @@ struct FlightDetailView: View {
     private var evidenceDrawer: some View {
         if leg?.originIcao != nil || leg?.destIcao != nil {
             CollapsibleSection(icon: "layers", title: "Evidence & source data",
-                               subtitle: "METAR/TAF · FAA programs · SIGMETs · ops feeds") {
+                               subtitle: "METAR/TAF · FAA programs · SIGMETs · flow · ops") {
                 weatherSection(embedded: true)
                 EnrouteHazardsSection(convective: snapshot?.convective,
                                       internationalSigmets: snapshot?.internationalSigmets,
+                                      gairmet: snapshot?.gairmet,
                                       embedded: true)
+                if let guidance = snapshot?.modelGuidance, guidance.hasContent {
+                    ModelGuidanceSection(guidance: guidance, embedded: true)
+                }
+                if mode == .preFlight {
+                    flowSection(embedded: true)
+                }
                 // Already horizon-gated: locks itself beyond same-day.
                 OpsSection(originIcao: leg?.originIcao,
                            destIcao: leg?.destIcao,
@@ -450,9 +462,27 @@ struct FlightDetailView: View {
     private func mapSection(embedded: Bool) -> some View {
         MapPreviewSection(position: mapPosition,
                           flightIdent: flight.ident,
+                          filedRoute: snapshot?.filedRoute,
                           embedded: embedded) {
             Haptics.tap()
             showingMap = true
+        }
+    }
+
+    @ViewBuilder
+    private func flowSection(embedded: Bool) -> some View {
+        FlowSection(flightIdent: flight.ident,
+                    date: flight.date,
+                    originIcao: leg?.originIcao,
+                    destIcao: leg?.destIcao,
+                    hoursToDeparture: hoursToDeparture,
+                    embedded: embedded)
+    }
+
+    @ViewBuilder
+    private func atfmCard(embedded: Bool) -> some View {
+        if let atfm = snapshot?.atfm, atfm.shouldDisplay {
+            AtfmCard(atfm: atfm, embedded: embedded)
         }
     }
 
