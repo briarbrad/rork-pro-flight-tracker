@@ -7,6 +7,7 @@ struct WatchlistView: View {
     @Environment(AppStore.self) private var store
     @State private var showingAdd: Bool = false
     @State private var showingAirports: Bool = false
+    @State private var showingSettings: Bool = false
 
     var body: some View {
         NavigationStack {
@@ -20,6 +21,16 @@ struct WatchlistView: View {
             .background(Theme.canvas)
             .navigationTitle("Trips")
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        Haptics.tap()
+                        showingSettings = true
+                    } label: {
+                        LucideIcon(name: "settings", size: 18, fallback: "gearshape")
+                            .foregroundStyle(Theme.teal)
+                    }
+                    .accessibilityLabel("Settings")
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         Haptics.tap()
@@ -47,6 +58,9 @@ struct WatchlistView: View {
             .sheet(isPresented: $showingAirports) {
                 AirportsView()
             }
+            .sheet(isPresented: $showingSettings) {
+                SettingsSheet()
+            }
             .navigationDestination(for: TrackedFlight.self) { flight in
                 FlightDetailView(flight: flight)
             }
@@ -65,6 +79,7 @@ struct WatchlistView: View {
                     FlightCardView(flight: flight,
                                    snapshot: store.snapshots[flight.id],
                                    isRefreshing: store.refreshing.contains(flight.id),
+                                   simpleMode: store.isSimpleMode,
                                    onRetry: {
                                        Task { await store.refresh(flight) }
                                    })
@@ -102,7 +117,9 @@ struct WatchlistView: View {
                 Text("No flights tracked yet")
                     .font(TypeScale.titleQuiet)
                     .foregroundStyle(Theme.ink)
-                Text("Add a flight and the engine will watch FAA programs, weather, and your aircraft's inbound chain for early trouble.")
+                Text(store.isSimpleMode
+                     ? "Add a flight and we'll keep an eye on when it will leave and land."
+                     : "Add a flight and the engine will watch FAA programs, weather, and your aircraft's inbound chain for early trouble.")
                     .font(TypeScale.body)
                     .foregroundStyle(Theme.inkSecondary)
                     .multilineTextAlignment(.center)

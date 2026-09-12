@@ -27,10 +27,15 @@ final class FlightRepository {
     /// True when `pushToken` can actually receive server-side Expo pushes.
     var canRegisterServerTracking: Bool { PushToken.isDeliverable(pushToken) }
 
+    /// Master Pro / Simple presentation. Persisted as a UserDefaults scalar
+    /// (same pattern as `pushToken`) so toggling never rewrites snapshots.
+    var displayMode: AppDisplayMode
+
     private let store: FlightDataStore
 
     init(store: FlightDataStore = FlightDataStore()) {
         self.store = store
+        self.displayMode = AppDisplayMode.load()
 
         let defaults = UserDefaults.standard
         let tokenKey = "pft.pushToken.v1"
@@ -52,6 +57,13 @@ final class FlightRepository {
         snapshots = store.loadSnapshots(for: flights.map(\.id))
         alerts = store.loadAlerts() ?? []
         pruneExpired()
+    }
+
+    /// Writes the presentation mode. Same snapshots keep rendering — only
+    /// the layout path changes. No refetch.
+    func setDisplayMode(_ mode: AppDisplayMode) {
+        displayMode = mode
+        mode.persist()
     }
 
     // MARK: - Derived reads

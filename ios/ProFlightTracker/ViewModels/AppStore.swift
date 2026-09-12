@@ -39,6 +39,15 @@ final class AppStore {
 
     var canRegisterServerTracking: Bool { repository.canRegisterServerTracking }
 
+    /// Master Pro / Simple switch. Forwards the repository scalar so views
+    /// already observing the store pick up a toggle without a refetch.
+    var displayMode: AppDisplayMode {
+        get { repository.displayMode }
+        set { repository.setDisplayMode(newValue) }
+    }
+
+    var isSimpleMode: Bool { displayMode == .simple }
+
     /// Hide chat and skip narrative once the server says OpenRouter is unset.
     func markAIUnavailable() { aiAvailable = false }
 

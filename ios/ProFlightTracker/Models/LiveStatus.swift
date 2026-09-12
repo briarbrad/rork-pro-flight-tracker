@@ -30,6 +30,9 @@ nonisolated struct LiveEnvelope: Codable, Sendable {
     /// Staleness threshold in seconds; null once the flight is finished.
     let refreshAfterSeconds: Int?
     let aeroapiQueriesUsed: Int?
+    /// Same optional Simple-mode payload as `/api/brief`. Older live
+    /// envelopes omit it; unexpected shapes still decode as JSON.
+    let simpleSummary: JSONValue?
 
     enum CodingKeys: String, CodingKey {
         case flight, date, phase, taxi, horizon, verdict, effects, timezones
@@ -40,6 +43,7 @@ nonisolated struct LiveEnvelope: Codable, Sendable {
         case delayTrend = "delay_trend"
         case refreshAfterSeconds = "refresh_after_seconds"
         case aeroapiQueriesUsed = "aeroapi_queries_used"
+        case simpleSummary = "simple_summary"
     }
 }
 
@@ -83,6 +87,8 @@ nonisolated struct StoredLive: Codable, Hashable, Sendable {
     /// Delay history across scheduled checks — optional so pre-existing
     /// persisted snapshots still decode.
     var delayTrend: BriefDelayTrend?
+    /// Optional so snapshots persisted before `simple_summary` still decode.
+    var simpleSummary: BriefSimpleSummary?
     /// Source-pull time — freshness captions and every advancing clock
     /// (countdowns, elapsed-in-phase) anchor here.
     var fetchedAt: Date
@@ -98,6 +104,7 @@ nonisolated struct StoredLive: Codable, Hashable, Sendable {
         refreshAfterSeconds = envelope.refreshAfterSeconds
         edctCacheAttached = envelope.edctCache?.attached
         delayTrend = envelope.delayTrend
+        simpleSummary = BriefSimpleSummary.parse(envelope.simpleSummary)
         fetchedAt = TimeFmt.parseISO(envelope.fetchedAt) ?? Date()
     }
 
