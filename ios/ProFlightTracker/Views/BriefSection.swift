@@ -11,6 +11,9 @@ struct BriefSection: View {
     @Environment(AppStore.self) private var store
     @Environment(\.openURL) private var openURL
     let flight: TrackedFlight
+    /// When the story card already owns causes[], hide the effects dump
+    /// and the promoted ACTION strip so "why" isn't told twice.
+    var hideEffects: Bool = false
 
     @State private var runError: String?
     @State private var showExcluded: Bool = false
@@ -133,12 +136,13 @@ struct BriefSection: View {
             // The screen's "action" slot: the server's top ACTION-severity
             // effect promoted to a highlighted strip, so what to DO never
             // hides mid-list. Fresh briefs only — a stale brief's advice is
-            // history, not instruction.
-            if let action = recommendedAction(brief) {
+            // history, not instruction. Hidden when the story card already
+            // lists the same ACTION cause.
+            if !hideEffects, let action = recommendedAction(brief) {
                 InlineNotice(style: .warning, message: "Recommended action — \(action)")
             }
 
-            if brief.hasEffects {
+            if !hideEffects, brief.hasEffects {
                 // Effects[] is the primary explanation — severities computed
                 // server-side (direction-aware), rendered as-is. When a delta
                 // chip is visible with no identified cause, the empty-state
@@ -147,7 +151,7 @@ struct BriefSection: View {
                             unexplainedDeltaNote: DeltaExplainer(times: brief.predictedTimes,
                                                                  effects: brief.effects)
                                 .unexplainedDeltaNote(for: brief.predictedTimes))
-            } else {
+            } else if !hideEffects {
                 // Older briefs without effects fall back to drivers/branch.
                 if !brief.drivers.isEmpty {
                     driversBlock(brief.drivers)

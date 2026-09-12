@@ -54,6 +54,7 @@ struct EffectsList: View {
     /// found no cause for it — the "nothing acting on this flight" copy then
     /// explicitly accounts for the visible slip instead of contradicting it.
     var unexplainedDeltaNote: String? = nil
+    var title: String = "What's affecting this flight"
 
     @State private var showInfo: Bool = false
 
@@ -62,7 +63,7 @@ struct EffectsList: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("What's affecting this flight")
+            Text(title)
                 .font(TypeScale.captionBold)
                 .foregroundStyle(Theme.ink)
 

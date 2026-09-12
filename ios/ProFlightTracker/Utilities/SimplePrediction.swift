@@ -106,7 +106,16 @@ nonisolated enum SimplePredictionComposer {
     static func prediction(brief: StoredBrief?,
                            live: StoredLive?,
                            zones: FlightZones = .unknown) -> SimplePrediction {
-        if let summary = brief?.simpleSummary ?? live?.simpleSummary, summary.hasContent {
+        let story = FlightStory.resolve(brief: brief, live: live)
+        // Same locked switch as the story card: outlook.applicable wins.
+        if story.usesOutlook, let headline = story.heroHeadline {
+            return SimplePrediction(
+                headline: headline,
+                body: story.orderedCauses.first?.why ?? "",
+                confidenceNote: nil,
+                fromServer: true)
+        }
+        if let summary = story.simpleSummary, summary.hasContent {
             return SimplePrediction(
                 headline: summary.headline ?? defaultHeadline(brief: brief, live: live),
                 body: summary.whatIThink ?? composedBody(brief: brief, live: live, zones: zones),
@@ -137,7 +146,9 @@ nonisolated enum SimplePredictionComposer {
     }
 
     /// Watchlist / trip-card chip — one status, no signal clutter.
-    /// LOW/LOW and "no brief yet" say "Scheduled", never "On time".
+    /// Prefers backend `status.label`. LOW/LOW and "no brief yet" say
+    /// "Scheduled", never "On time". Outlook-applicable stays "Too early
+    /// to call" (or the server label) — never a fake green on-time.
     static func cardStatus(brief: StoredBrief?,
                            live: StoredLive?,
                            phase: BriefPhase?,
@@ -152,6 +163,21 @@ nonisolated enum SimplePredictionComposer {
         case "AIRBORNE": return ("In the air", .info)
         case "TAXI_OUT", "TAXI_IN": return ("Taxiing", .watch)
         default: break
+        }
+
+        let story = FlightStory.resolve(brief: brief, live: live)
+        if let label = story.status?.displayLabel {
+            if story.usesOutlook {
+                if let risk = story.outlook?.risk, risk.rank > RiskLevel.low.rank {
+                    return (label, ChipTone.from(risk))
+                }
+                return (label, .neutral)
+            }
+            switch story.status?.statusCode {
+            case "DELAYED", "CANCELLED", "DIVERTED": return (label, .alert)
+            case "EARLY", "ON_TIME", "ARRIVED": return (label, .ok)
+            default: return (label, .neutral)
+            }
         }
 
         let treatment = risk(brief: brief, live: live)
