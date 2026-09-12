@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Phase-adaptive flight report, organised as three layers so the screen
-/// reads "answer, then why, then evidence" instead of a flat card stack:
+/// Phase-adaptive flight report. Pro mode is organised as three layers so
+/// the screen reads "answer, then why, then evidence":
 /// 1. ANSWER — hero status card (which owns the unified trip timeline —
 ///    ALL milestone timing renders there), plus the EDCT slot when present.
 /// 2. WHY / ACTION — the brief verdict with its effects[] explanation and
@@ -11,7 +11,8 @@ import SwiftUI
 ///    (METAR/TAF, FAA programs, SIGMETs, ops feeds) for users who dig in.
 /// Phase still shapes the answer layer (map promoted day-of; landed /
 /// cancelled collapses to a closure card — history is never restated as
-/// prediction).
+/// prediction). Simple mode is an alternate layout path on the same
+/// snapshots — prediction, times, one risk line, map — not a forked app.
 struct FlightDetailView: View {
     @Environment(AppStore.self) private var store
     let flight: TrackedFlight
@@ -159,6 +160,8 @@ struct FlightDetailView: View {
 
                 if isFirstLoad {
                     FlightDetailSkeleton()
+                } else if store.isSimpleMode {
+                    simpleLayout
                 } else {
                     switch mode {
                     case .preFlight: preFlightLayout
@@ -175,7 +178,8 @@ struct FlightDetailView: View {
         // Floating "ask about this flight" chat — only once the brief has
         // supplied grounding facts, so answers stay tied to real data.
         .overlay(alignment: .bottomTrailing) {
-            if chatAvailable {
+            // Chat is a Pro-mode tool. Simple stays quiet.
+            if chatAvailable, !store.isSimpleMode {
                 chatButton
             }
         }
@@ -229,6 +233,52 @@ struct FlightDetailView: View {
             // the store persists the attempt, so reopening never refires it.
             await store.autoBriefIfNeeded(for: flight)
             await store.loadAtfmIfNeeded(for: flight)
+        }
+    }
+
+    // MARK: - Simple mode: prediction-first, same snapshots
+
+    /// Alternate layout path — not a fork. Closed flights still collapse to
+    /// a factual card (history is never restated as prediction). Everything
+    /// else is: prediction → times → one risk line → map when we have a
+    /// position. Evidence, ATC, ops, G-AIRMET, and chat stay in Pro.
+    @ViewBuilder
+    private var simpleLayout: some View {
+        if mode == .closed {
+            FlightClosureCard(leg: leg,
+                              phase: truthPhase,
+                              zones: zones,
+                              lastRefreshed: snapshot?.lastRefreshed)
+            CollapsibleSection(icon: "archive", title: "Flight record",
+                               subtitle: "Actual times") {
+                FlightRecordCard(leg: leg, zones: zones, embedded: true)
+                alertHistory(embedded: true)
+            }
+        } else {
+            SimplePredictionCard(
+                prediction: SimplePredictionComposer.prediction(
+                    brief: brief, live: live, zones: zones),
+                asOf: heroAsOf,
+                isStale: heroIsStale) {
+                    Task { await store.refresh(flight) }
+                }
+
+            SimpleTimesCard(times: live?.predictedTimes ?? brief?.predictedTimes,
+                            leg: leg,
+                            zones: zones)
+
+            if let edct = live?.predictedTimes?.edct ?? brief?.predictedTimes?.edct,
+               edct.edct != nil {
+                SimpleAssignedTakeoffNotice(edct: edct, originZone: zones.origin)
+            }
+
+            SimpleRiskCard(treatment: SimplePredictionComposer.risk(brief: brief, live: live))
+
+            if mapPosition != nil {
+                mapSection(embedded: false)
+            }
+
+            NarrativeSection(flight: flight)
         }
     }
 

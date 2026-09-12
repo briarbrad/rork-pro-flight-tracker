@@ -22,6 +22,10 @@ nonisolated struct BriefEnvelope: Codable, Sendable {
     let llmPayload: BriefLlmPayload?
     let delayTrend: BriefDelayTrend?
     let aeroapiQueriesUsed: Int?
+    /// Passenger-facing prediction for Simple mode. Optional JSON so older
+    /// backends (and unexpected shapes) still decode — parsed into
+    /// `BriefSimpleSummary` on persist.
+    let simpleSummary: JSONValue?
 
     enum CodingKeys: String, CodingKey {
         case flight, date, horizon, verdict, effects, timezones, phase, taxi, position
@@ -34,6 +38,7 @@ nonisolated struct BriefEnvelope: Codable, Sendable {
         case llmPayload = "llm_payload"
         case delayTrend = "delay_trend"
         case aeroapiQueriesUsed = "aeroapi_queries_used"
+        case simpleSummary = "simple_summary"
     }
 }
 
@@ -524,6 +529,8 @@ nonisolated struct StoredBrief: Codable, Hashable, Sendable {
     var llmPayload: BriefLlmPayload?
     var narrative: String?
     var narrativeFailed: Bool
+    /// Optional so briefs persisted before `simple_summary` existed still decode.
+    var simpleSummary: BriefSimpleSummary?
     let runAt: Date
 
     init(envelope: BriefEnvelope) {
@@ -550,6 +557,7 @@ nonisolated struct StoredBrief: Codable, Hashable, Sendable {
         llmPayload = envelope.llmPayload
         narrative = nil
         narrativeFailed = false
+        simpleSummary = BriefSimpleSummary.parse(envelope.simpleSummary)
         runAt = Date()
     }
 

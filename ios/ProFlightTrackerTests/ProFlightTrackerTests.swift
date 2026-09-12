@@ -403,3 +403,240 @@ struct OpsModelTests {
         return try JSONDecoder().decode(AtfmEnvelope.self, from: data)
     }
 }
+
+/// `simple_summary` is optional and loss-tolerant: older backends omit it,
+/// and a future backend may send a string or a loosely-keyed object.
+struct SimpleSummaryParseTests {
+
+    @Test func missingAndEmptyAreNil() {
+        #expect(BriefSimpleSummary.parse(nil) == nil)
+        #expect(BriefSimpleSummary.parse(.null) == nil)
+        #expect(BriefSimpleSummary.parse(.string("   ")) == nil)
+        #expect(BriefSimpleSummary.parse(.object([:])) == nil)
+        #expect(BriefSimpleSummary.parse(.array([])) == nil)
+        #expect(BriefSimpleSummary.parse(.number(1)) == nil)
+    }
+
+    @Test func stringPayloadBecomesBody() {
+        let parsed = BriefSimpleSummary.parse(.string("Gate around 8:43 AM."))
+        #expect(parsed?.whatIThink == "Gate around 8:43 AM.")
+        #expect(parsed?.hasContent == true)
+    }
+
+    @Test func objectPrefersCanonicalKeys() {
+        let parsed = BriefSimpleSummary.parse(.object([
+            "headline": .string("On track"),
+            "what_i_think": .string("I expect a 9:05 AM takeoff."),
+            "confidence_note": .string("Too early to be sure."),
+            "risk": .string("LOW"),
+            "confidence": .string("LOW"),
+        ]))
+        #expect(parsed?.headline == "On track")
+        #expect(parsed?.whatIThink == "I expect a 9:05 AM takeoff.")
+        #expect(parsed?.confidenceNote == "Too early to be sure.")
+        #expect(parsed?.risk == "LOW")
+        #expect(parsed?.confidence == "LOW")
+    }
+
+    @Test func alternateKeysStillDecode() {
+        let parsed = BriefSimpleSummary.parse(.object([
+            "title": .string("May be late"),
+            "body": .string("Weather at the origin."),
+            "caveat": .string("This can still change."),
+        ]))
+        #expect(parsed?.headline == "May be late")
+        #expect(parsed?.whatIThink == "Weather at the origin.")
+        #expect(parsed?.confidenceNote == "This can still change.")
+    }
+}
+
+struct BriefEnvelopeSimpleSummaryTests {
+
+    @Test func olderBriefWithoutSimpleSummaryStillDecodes() throws {
+        let json = """
+        {"flight":"DL244","verdict":{"departure_risk":"LOW","confidence":"LOW"}}
+        """.data(using: .utf8)!
+        let envelope = try JSONDecoder().decode(BriefEnvelope.self, from: json)
+        #expect(envelope.simpleSummary == nil)
+        let stored = StoredBrief(envelope: envelope)
+        #expect(stored.simpleSummary == nil)
+        #expect(stored.isNeutral)
+    }
+
+    @Test func objectSurvivesIntoStoredBrief() throws {
+        let stored = try Self.brief([
+            "flight": "DL244",
+            "simple_summary": [
+                "headline": "Looking on time",
+                "what_i_think": "Gate around 8:43 AM.",
+            ],
+        ])
+        #expect(stored.simpleSummary?.headline == "Looking on time")
+        #expect(stored.simpleSummary?.whatIThink == "Gate around 8:43 AM.")
+    }
+
+    @Test func unexpectedShapeDoesNotFailTheBrief() throws {
+        let stored = try Self.brief([
+            "flight": "DL244",
+            "verdict": ["departure_risk": "LOW", "confidence": "MEDIUM"],
+            "simple_summary": [1, 2, 3],
+        ])
+        #expect(stored.simpleSummary == nil)
+        #expect(stored.riskLevel == .low)
+    }
+
+    static func brief(_ object: [String: Any]) throws -> StoredBrief {
+        let data = try JSONSerialization.data(withJSONObject: object)
+        return StoredBrief(envelope: try JSONDecoder().decode(BriefEnvelope.self, from: data))
+    }
+}
+
+struct SimplePredictionComposerTests {
+
+    @Test func usesServerSummaryWhenPresent() throws {
+        let stored = try BriefEnvelopeSimpleSummaryTests.brief([
+            "simple_summary": [
+                "headline": "Server headline",
+                "what_i_think": "Server body",
+                "confidence_note": "Server caveat",
+            ],
+        ])
+        let prediction = SimplePredictionComposer.prediction(brief: stored, live: nil)
+        #expect(prediction.fromServer)
+        #expect(prediction.headline == "Server headline")
+        #expect(prediction.body == "Server body")
+        #expect(prediction.confidenceNote == "Server caveat")
+    }
+
+    @Test func fallbackComposesTimesAndDoesNotReassureLowLow() throws {
+        let stored = try BriefEnvelopeSimpleSummaryTests.brief([
+            "verdict": ["departure_risk": "LOW", "confidence": "LOW"],
+            "branch_classification": ["branch": "NOT_APPLICABLE"],
+            "predicted_times": [
+                "gate_departure": [
+                    "local_display": "8:43 AM EDT",
+                    "timezone": "America/New_York",
+                    "status": "ESTIMATED",
+                ],
+                "takeoff": [
+                    "local_display": "9:05 AM EDT",
+                    "timezone": "America/New_York",
+                    "status": "ESTIMATED",
+                ],
+                "gate_arrival": [
+                    "local_display": "11:22 AM PDT",
+                    "timezone": "America/Los_Angeles",
+                    "status": "ESTIMATED",
+                ],
+            ],
+        ])
+        #expect(stored.isNeutral)
+        let prediction = SimplePredictionComposer.prediction(brief: stored, live: nil)
+        #expect(!prediction.fromServer)
+        #expect(prediction.headline == "Nothing looks delayed yet")
+        #expect(prediction.body.contains("8:43 AM EDT"))
+        #expect(prediction.body.contains("9:05 AM EDT"))
+        #expect(prediction.body.contains("11:22 AM PDT"))
+
+        let risk = SimplePredictionComposer.risk(brief: stored, live: nil)
+        #expect(risk.tone == .neutral)
+        #expect(risk.label == "Too early to say")
+        #expect(risk.chipTone == .neutral)
+
+        let card = SimplePredictionComposer.cardStatus(
+            brief: stored, live: nil, phase: stored.phase, leg: nil)
+        #expect(card.text == "Scheduled")
+        #expect(card.tone == .neutral)
+    }
+
+    @Test func highRiskIsAlertNotGreen() throws {
+        let stored = try BriefEnvelopeSimpleSummaryTests.brief([
+            "verdict": ["departure_risk": "HIGH", "confidence": "HIGH"],
+        ])
+        let risk = SimplePredictionComposer.risk(brief: stored, live: nil)
+        #expect(risk.tone == .alert)
+        #expect(risk.label == "Expect delays")
+        let prediction = SimplePredictionComposer.prediction(brief: stored, live: nil)
+        #expect(prediction.headline.contains("late"))
+    }
+
+    @Test func confidentLowMaySayOnTimeOnTheCard() throws {
+        let stored = try BriefEnvelopeSimpleSummaryTests.brief([
+            "verdict": ["departure_risk": "LOW", "confidence": "HIGH"],
+        ])
+        #expect(!stored.isNeutral)
+        let risk = SimplePredictionComposer.risk(brief: stored, live: nil)
+        #expect(risk.tone == .ok)
+        #expect(risk.label == "Looking on time")
+        let card = SimplePredictionComposer.cardStatus(
+            brief: stored, live: nil, phase: nil, leg: nil)
+        #expect(card.text == "On time")
+    }
+
+    @Test func statusOnlyLowNeverSaysOnTime() throws {
+        let json = """
+        {"verdict":{"departure_risk":"LOW","confidence":"LOW","scope":"status_only"},
+         "fetched_at":"2026-09-12T12:00:00Z","refresh_after_seconds":120}
+        """.data(using: .utf8)!
+        let live = StoredLive(envelope: try JSONDecoder().decode(LiveEnvelope.self, from: json))
+        let risk = SimplePredictionComposer.risk(brief: nil, live: live)
+        #expect(risk.tone == .neutral)
+        #expect(risk.label == "Status looks routine")
+
+        let card = SimplePredictionComposer.cardStatus(
+            brief: nil, live: live, phase: nil, leg: nil)
+        #expect(card.text == "Scheduled")
+        #expect(card.tone == .neutral)
+    }
+
+    @Test func airborneCardSaysInTheAir() {
+        let phase = BriefPhase(phase: "AIRBORNE", phaseLabel: "Airborne",
+                               phaseDetail: nil, elapsedInPhaseMin: 40,
+                               nextEvent: "gate_arrival", nextEventLabel: "Arrival",
+                               nextEventLocalDisplay: "11:22 AM PDT",
+                               nextEventBasis: nil, nextEventStatus: "ESTIMATED",
+                               nextEventOverdue: false, minutesToNextEvent: 90)
+        let card = SimplePredictionComposer.cardStatus(
+            brief: nil, live: nil, phase: phase, leg: nil)
+        #expect(card.text == "In the air")
+        #expect(card.tone == .info)
+    }
+
+    @Test func emptyStateIsNeutralScheduled() {
+        let risk = SimplePredictionComposer.risk(brief: nil, live: nil)
+        #expect(risk.tone == .neutral)
+        let card = SimplePredictionComposer.cardStatus(
+            brief: nil, live: nil, phase: nil, leg: nil)
+        #expect(card.text == "Scheduled")
+    }
+}
+
+/// Missing UserDefaults key = Pro, so existing installs keep today's UI.
+struct DisplayModePersistenceTests {
+
+    @Test func missingKeyIsPro() {
+        let suite = "pft.test.displayMode.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        #expect(AppDisplayMode.load(from: defaults) == .pro)
+        defaults.removePersistentDomain(forName: suite)
+    }
+
+    @Test func persistsAndReloadsSimple() {
+        let suite = "pft.test.displayMode.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        AppDisplayMode.simple.persist(to: defaults)
+        #expect(AppDisplayMode.load(from: defaults) == .simple)
+        defaults.removePersistentDomain(forName: suite)
+    }
+
+    @Test func unknownValueFallsBackToPro() {
+        let suite = "pft.test.displayMode.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        defaults.set("nerd", forKey: AppDisplayMode.defaultsKey)
+        #expect(AppDisplayMode.load(from: defaults) == .pro)
+        defaults.removePersistentDomain(forName: suite)
+    }
+}

@@ -6,6 +6,7 @@ import SwiftUI
 struct AlertsView: View {
     @Environment(AppStore.self) private var store
     @State private var path: [TrackedFlight] = []
+    @State private var showingSettings: Bool = false
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -22,6 +23,16 @@ struct AlertsView: View {
                 FlightDetailView(flight: flight)
             }
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        Haptics.tap()
+                        showingSettings = true
+                    } label: {
+                        LucideIcon(name: "settings", size: 18, fallback: "gearshape")
+                            .foregroundStyle(Theme.teal)
+                    }
+                    .accessibilityLabel("Settings")
+                }
                 if store.unreadAlertCount > 0 {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button("Mark all read") {
@@ -32,6 +43,9 @@ struct AlertsView: View {
                         .foregroundStyle(Theme.teal)
                     }
                 }
+            }
+            .sheet(isPresented: $showingSettings) {
+                SettingsSheet()
             }
         }
     }

@@ -1,11 +1,13 @@
 import SwiftUI
 
-/// Watchlist card: route, times, status, gate, brief verdict badge (the only
-/// flight-level verdict), and a live-signal count chip.
+/// Watchlist card. Pro: route, times, status, gate, brief verdict badge,
+/// and a live-signal count chip. Simple: route, times, one status chip.
 struct FlightCardView: View {
     let flight: TrackedFlight
     let snapshot: FlightSnapshot?
     let isRefreshing: Bool
+    /// Simple mode: route, times, one status chip — no signal clutter.
+    var simpleMode: Bool = false
     /// Per-card retry for a failed refresh — fired from the error strip so a
     /// single flight can be retried without a global pull-to-refresh.
     var onRetry: (() -> Void)? = nil
@@ -46,27 +48,33 @@ struct FlightCardView: View {
                     StatusChip(text: "Stale", icon: "history", tone: .watch,
                                size: .mini, uppercased: true)
                 }
-                // Brief verdict while fresh; the live status_only verdict
-                // escalates over it and governs once the brief goes stale.
-                FlightVerdictBadge(brief: snapshot?.brief, live: snapshot?.live)
+                if simpleMode {
+                    simpleStatusChip
+                } else {
+                    // Brief verdict while fresh; the live status_only verdict
+                    // escalates over it and governs once the brief goes stale.
+                    FlightVerdictBadge(brief: snapshot?.brief, live: snapshot?.live)
+                }
             }
 
             routeRow
 
-            HStack(spacing: 8) {
-                StatusChip(text: leg?.status ?? "Awaiting data", icon: "radio",
-                           tone: .info, size: .mini)
-                if let gate = leg?.gateOrigin {
-                    StatusChip(text: "Gate \(gate)", icon: "door-open",
-                               tone: .neutral, size: .mini)
+            if !simpleMode {
+                HStack(spacing: 8) {
+                    StatusChip(text: leg?.status ?? "Awaiting data", icon: "radio",
+                               tone: .info, size: .mini)
+                    if let gate = leg?.gateOrigin {
+                        StatusChip(text: "Gate \(gate)", icon: "door-open",
+                                   tone: .neutral, size: .mini)
+                    }
+                    if let signals = assessment?.signals, !signals.isEmpty {
+                        StatusChip(text: "\(signals.count) signal\(signals.count == 1 ? "" : "s")",
+                                   icon: "activity",
+                                   tone: assessment.map { ChipTone.from($0.level) } ?? .neutral,
+                                   size: .mini)
+                    }
+                    Spacer()
                 }
-                if let signals = assessment?.signals, !signals.isEmpty {
-                    StatusChip(text: "\(signals.count) signal\(signals.count == 1 ? "" : "s")",
-                               icon: "activity",
-                               tone: assessment.map { ChipTone.from($0.level) } ?? .neutral,
-                               size: .mini)
-                }
-                Spacer()
             }
 
             // A failed background refresh must be visible, not silent: red
@@ -107,8 +115,9 @@ struct FlightCardView: View {
             }
 
             // Same freshness language as the flight screen — amber once the
-            // data is older than its server-declared refresh window.
-            if let refreshed = snapshot?.lastRefreshed {
+            // data is older than its server-declared refresh window. Simple
+            // cards drop the routine caption; stale still shows as a chip.
+            if !simpleMode, let refreshed = snapshot?.lastRefreshed {
                 FreshnessCaption(asOf: refreshed,
                                  prefix: "updated",
                                  isStale: isStale)
@@ -185,5 +194,17 @@ struct FlightCardView: View {
 
     private var departureSlip: SlipSeverity {
         SlipSeverity.of(minutes: leg?.departureSlipMinutes)
+    }
+
+    /// One passenger-facing chip. LOW/LOW and "no brief yet" say Scheduled,
+    /// never On time.
+    private var simpleStatusChip: some View {
+        let phase = snapshot?.live?.phase ?? snapshot?.brief?.phase
+        let status = SimplePredictionComposer.cardStatus(
+            brief: snapshot?.brief,
+            live: snapshot?.live,
+            phase: phase,
+            leg: leg)
+        return StatusChip(text: status.text, tone: status.tone, size: .mini)
     }
 }
