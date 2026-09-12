@@ -39,20 +39,28 @@ final class FlightChatViewModel {
     var messages: [ChatTurn]
     var isSending: Bool = false
     var errorMessage: String?
+    /// Latched when `/api/chat` returns 501 — the composer disables and
+    /// the flight-screen FAB hides for the rest of the session.
+    var isUnavailable: Bool = false
 
     init(flight: TrackedFlight, store: AppStore) {
         self.flight = flight
         self.store = store
         self.messages = store.snapshots[flight.id]?.chatHistory ?? []
+        self.isUnavailable = store.aiAvailable == false
+        if isUnavailable {
+            self.errorMessage = ChatError.notConfigured.errorDescription
+        }
     }
 
     /// A failed turn leaves the user's question in place as the last message,
-    /// so it can be resent verbatim.
-    var canRetry: Bool { messages.last?.isUser == true }
+    /// so it can be resent verbatim. 501 is not retryable — the provider is
+    /// unset on the server, not a transient miss.
+    var canRetry: Bool { messages.last?.isUser == true && !isUnavailable }
 
     func send(_ text: String) async {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, !isSending else { return }
+        guard !trimmed.isEmpty, !isSending, !isUnavailable else { return }
         messages.append(ChatTurn(role: "user", content: trimmed))
         persistHistory()
         await deliver()
@@ -80,8 +88,13 @@ final class FlightChatViewModel {
             guard !reply.isEmpty else { throw ChatError.emptyResponse }
             messages.append(ChatTurn(role: "assistant", content: reply))
             persistHistory()
+            store.markAIAvailable()
         } catch let APIError.http(code, _) {
             let mapped: ChatError = code == 501 ? .notConfigured : .http(code)
+            if code == 501 {
+                isUnavailable = true
+                store.markAIUnavailable()
+            }
             errorMessage = mapped.errorDescription
         } catch let error as ChatError {
             errorMessage = error.errorDescription

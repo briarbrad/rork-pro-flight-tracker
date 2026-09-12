@@ -32,4 +32,45 @@ nonisolated enum HorizonGate {
         guard !codes.isEmpty else { return false }
         return codes.contains { !$0.uppercased().hasPrefix("K") }
     }
+
+    /// Equipment chain is a paid 2–3 query lookup that only describes the
+    /// inbound aircraft's turn. The brief skips it past 12h (assignment is
+    /// unreliable) and from `TAXI_OUT` onward (the turn already happened).
+    /// Mirror both gates so a refresh never buys a chain the brief would ignore.
+    static func equipmentChainCarriesSignal(hoursToDeparture: Double?,
+                                            phaseCode: String?) -> Bool {
+        guard sameDaySourcesCarrySignal(hoursToDeparture: hoursToDeparture) else {
+            return false
+        }
+        return isPreGate(phaseCode)
+    }
+
+    /// Origin-surface now-casts (lightning, ramp closures) only affect this
+    /// departure while the aircraft is still on the origin ramp. Unknown
+    /// phase defaults to true so we never blind the imminent case.
+    static func originSurfaceOpsCarrySignal(hoursToDeparture: Double?,
+                                            phaseCode: String?) -> Bool {
+        guard sameDaySourcesCarrySignal(hoursToDeparture: hoursToDeparture) else {
+            return false
+        }
+        let code = (phaseCode ?? "").uppercased()
+        if code.isEmpty { return true }
+        return code == DerivedFlightPhase.preGate.rawValue
+            || code == DerivedFlightPhase.taxiOut.rawValue
+    }
+
+    /// True when the aircraft has not yet left the gate, or we don't know.
+    static func isPreGate(_ phaseCode: String?) -> Bool {
+        let code = (phaseCode ?? "").uppercased()
+        return code.isEmpty || code == DerivedFlightPhase.preGate.rawValue
+    }
+
+    /// Physically between gate and gate — the window where a live position
+    /// is worth a (usually free) track pull.
+    static func isEnRoute(_ phaseCode: String?) -> Bool {
+        let code = (phaseCode ?? "").uppercased()
+        return code == DerivedFlightPhase.taxiOut.rawValue
+            || code == DerivedFlightPhase.airborne.rawValue
+            || code == DerivedFlightPhase.taxiIn.rawValue
+    }
 }

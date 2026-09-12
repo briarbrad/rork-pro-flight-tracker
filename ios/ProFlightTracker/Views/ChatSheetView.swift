@@ -110,7 +110,7 @@ struct ChatSheetView: View {
 
     private var composer: some View {
         VStack(spacing: 0) {
-            if let message = viewModel.errorMessage {
+            if let message = viewModel.errorMessage, !viewModel.isUnavailable {
                 errorBanner(message)
             }
             inputBar
@@ -149,36 +149,52 @@ struct ChatSheetView: View {
     private var canSend: Bool {
         !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !viewModel.isSending
+            && !viewModel.isUnavailable
     }
 
+    @ViewBuilder
     private var inputBar: some View {
-        HStack(spacing: Space.xs) {
-            TextField("Ask about this flight…", text: $draft)
-                .font(TypeScale.body)
-                .focused($inputFocused)
-                .submitLabel(.send)
-                .onSubmit { sendDraft() }
-                .padding(.horizontal, Space.sm)
-                .padding(.vertical, Space.xs + 2)
-                .background(Theme.card)
-                .clipShape(.rect(cornerRadius: Theme.Radius.well))
-
-            if viewModel.isSending {
-                ProgressView().controlSize(.small).tint(Theme.teal)
+        if viewModel.isUnavailable {
+            HStack(alignment: .top, spacing: Space.xs) {
+                Image(systemName: "sparkles")
+                    .font(.caption)
+                    .foregroundStyle(Theme.inkSecondary)
+                Text("AI chat is turned off on the server (no OpenRouter key). The brief verdict above is the full assessment.")
+                    .font(TypeScale.caption)
+                    .foregroundStyle(Theme.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .padding(.horizontal, Space.md)
+            .padding(.vertical, Space.xs + 2)
+        } else {
+            HStack(spacing: Space.xs) {
+                TextField("Ask about this flight…", text: $draft)
+                    .font(TypeScale.body)
+                    .focused($inputFocused)
+                    .submitLabel(.send)
+                    .onSubmit { sendDraft() }
+                    .padding(.horizontal, Space.sm)
+                    .padding(.vertical, Space.xs + 2)
+                    .background(Theme.card)
+                    .clipShape(.rect(cornerRadius: Theme.Radius.well))
 
-            Button {
-                sendDraft()
-            } label: {
-                Image(systemName: "arrow.up.circle.fill")
-                    .font(.system(size: 30))
-                    .foregroundStyle(canSend ? Theme.teal : Theme.inkSecondary.opacity(0.4))
+                if viewModel.isSending {
+                    ProgressView().controlSize(.small).tint(Theme.teal)
+                }
+
+                Button {
+                    sendDraft()
+                } label: {
+                    Image(systemName: "arrow.up.circle.fill")
+                        .font(.system(size: 30))
+                        .foregroundStyle(canSend ? Theme.teal : Theme.inkSecondary.opacity(0.4))
+                }
+                .disabled(!canSend)
+                .accessibilityLabel("Send question")
             }
-            .disabled(!canSend)
-            .accessibilityLabel("Send question")
+            .padding(.horizontal, Space.md)
+            .padding(.vertical, Space.xs + 2)
         }
-        .padding(.horizontal, Space.md)
-        .padding(.vertical, Space.xs + 2)
     }
 
     private func sendDraft() {

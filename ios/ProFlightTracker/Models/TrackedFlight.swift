@@ -32,6 +32,11 @@ nonisolated struct FlightSnapshot: Codable, Hashable, Sendable {
     var convective: TcfEnvelope?
     /// International SIGMETs, fetched only when the route leaves CONUS.
     var internationalSigmets: [InternationalSigmet]?
+    /// Last known aircraft position. Filled from the equipment chain while
+    /// the turn is still relevant, then from the usually-free `/api/flight/track`
+    /// once the aircraft has pushed (so the day-of map does not depend on a
+    /// paid chain refresh). Optional so older snapshots still decode.
+    var lastPosition: AircraftPosition?
     var assessment: RiskAssessment?
     var brief: StoredBrief?
     /// Server-computed live layer from /api/flight/live — the render source
@@ -53,9 +58,20 @@ nonisolated struct FlightSnapshot: Codable, Hashable, Sendable {
     /// code. Optional so old persisted snapshots decode.
     var chatHistory: [ChatTurn]?
 
-    /// The flight is finished (`refresh_after_seconds: null` from the live
-    /// endpoint) — nothing can change, so automatic refreshes stop.
-    var isFinal: Bool { live?.isFinal ?? false }
+    /// The flight is finished — nothing can change, so automatic refreshes
+    /// and paid follow-up queries stop. The live layer's
+    /// `refresh_after_seconds: null` is authoritative when present; the
+    /// milestone-derived phase covers snapshots that never got a live pull
+    /// (status-only add flow, or a live decode gap) so a landed/cancelled
+    /// flight cannot keep spending AeroAPI credit.
+    var isFinal: Bool {
+        if live?.isFinal == true { return true }
+        guard let flight else { return false }
+        switch FlightPhaseDerivation.phase(for: flight) {
+        case .arrived, .cancelled: return true
+        default: return false
+        }
+    }
 
     /// Server-driven staleness gate for AUTOMATIC refreshes (screen-open).
     /// Falls back to 120 s until the first live pull supplies a threshold.

@@ -123,7 +123,7 @@ struct OpsSection: View {
         Task {
             async let notamTask = try? API.notams(airportIcao: airport)
             async let rvrTask = try? API.rvr(airportIcao: origin)
-            async let lightningTask = try? API.lightning(icao: airport)
+            async let lightningTask = try? API.lightning(icao: origin)
             async let pirepTask = try? API.pireps(icao: airport)
 
             let (notamResult, rvrResult, lightningResult, pirepResult) =
